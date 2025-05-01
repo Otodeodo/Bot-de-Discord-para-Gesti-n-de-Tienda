@@ -67,54 +67,59 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @app_commands.default_permissions(administrator=True)
     @is_owner()
     async def close(interaction: discord.Interaction):
-        # Deferir la respuesta para evitar el timeout de 3 segundos
-        await interaction.response.defer(ephemeral=True)
+        try:
+            # Deferir la respuesta para evitar el timeout de 3 segundos
+            await interaction.response.defer(ephemeral=True)
 
-        data = load_data()
-        channel_id = str(interaction.channel.id)
-        
-        # Buscar el ticket asociado con este canal
-        ticket = None
-        ticket_id = None
-        for tid, t in data["tickets"].items():
-            if t["channel_id"] == channel_id and t["status"] == "abierto":
-                ticket = t
-                ticket_id = tid
-                break
-        
-        if not ticket:
-            await interaction.followup.send("Este canal no es un ticket abierto o no existe.", ephemeral=True)
-            return
-        
-        # Actualizar el estado del ticket a "cerrado"
-        data["tickets"][ticket_id]["status"] = "cerrado"
-        data["tickets"][ticket_id]["closed_timestamp"] = datetime.utcnow().isoformat()
-        save_data(data)
-        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} cerrado por {interaction.user.name} (ID: {interaction.user.id})")
-        
-        # Notificar al usuario del ticket que se ha cerrado
-        user_id = ticket["user_id"]
-        try:
-            user = await interaction.guild.fetch_member(int(user_id))
-            await user.send(f"Tu ticket #{ticket_id} ha sido cerrado por un Owner.")
-        except (discord.NotFound, discord.Forbidden):
-            # Si no se puede notificar al usuario (por ejemplo, si dejó el servidor o tiene DMs cerrados), ignorar
-            pass
-        
-        # Eliminar el canal y enviar confirmación
-        try:
-            # Enviar confirmación antes de eliminar el canal
-            await interaction.followup.send(f"Ticket #{ticket_id} cerrado. El canal será eliminado.", ephemeral=True)
-            await asyncio.sleep(1)  # Pequeña pausa para asegurar que el mensaje se envíe
-            await interaction.channel.delete()
-        except discord.Forbidden:
-            await interaction.followup.send("Error: No tengo permisos para eliminar el canal. Asegúrate de que tenga permisos para gestionar canales.", ephemeral=True)
-        except discord.NotFound:
-            # El canal ya fue eliminado, ignorar este error
-            pass
+            data = load_data()
+            channel_id = str(interaction.channel.id)
+            
+            # Buscar el ticket asociado con este canal
+            ticket = None
+            ticket_id = None
+            for tid, t in data["tickets"].items():
+                if t["channel_id"] == channel_id and t["status"] == "abierto":
+                    ticket = t
+                    ticket_id = tid
+                    break
+            
+            if not ticket:
+                await interaction.followup.send("Este canal no es un ticket abierto o no existe.", ephemeral=True)
+                return
+            
+            # Actualizar el estado del ticket a "cerrado"
+            data["tickets"][ticket_id]["status"] = "cerrado"
+            data["tickets"][ticket_id]["closed_timestamp"] = datetime.utcnow().isoformat()
+            save_data(data)
+            print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} cerrado por {interaction.user.name} (ID: {interaction.user.id})")
+            
+            # Notificar al usuario del ticket que se ha cerrado
+            user_id = ticket["user_id"]
+            try:
+                user = await interaction.guild.fetch_member(int(user_id))
+                await user.send(f"Tu ticket #{ticket_id} ha sido cerrado por un Owner.")
+            except (discord.NotFound, discord.Forbidden):
+                # Si no se puede notificar al usuario, ignorar
+                pass
+            
+            # Eliminar el canal
+            try:
+                await interaction.channel.delete()
+                return  # Salir después de eliminar el canal para evitar más interacciones
+            except discord.Forbidden:
+                await interaction.followup.send("Error: No tengo permisos para eliminar el canal.", ephemeral=True)
+            except discord.NotFound:
+                # El canal ya fue eliminado, ignorar
+                pass
+            except Exception as e:
+                print(f"Error al eliminar el canal del ticket: {str(e)}")
+                await interaction.followup.send(f"Error al eliminar el canal: {str(e)}", ephemeral=True)
+
         except Exception as e:
-            print(f"Error al cerrar el ticket: {str(e)}")
-            # No intentar enviar mensaje de error ya que el canal podría no existir
+            print(f"Error en el comando close: {str(e)}")
+            # Solo intentar enviar mensaje de error si la interacción no ha sido respondida
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error al cerrar el ticket: {str(e)}", ephemeral=True)
 
 
     @tree.command(name="ticket_panel", description="Crea un panel para abrir tickets")
