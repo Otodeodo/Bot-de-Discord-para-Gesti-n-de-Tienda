@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from typing import Optional
 import uuid
+import asyncio
 from datetime import datetime
 
 from data_manager import load_data, save_data
@@ -26,6 +27,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             "image_url": image_url
         }
         save_data(data)
+        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Producto {name} (ID: {product_id}) añadido por {interaction.user.name} (ID: {interaction.user.id}) - Precio: ${price:.2f} MXN")
         await interaction.response.send_message(f"Producto '{name}' añadido (ID: {product_id}).", ephemeral=True)
 
     @tree.command(name="edit_product", description="Edita un producto existente")
@@ -55,8 +57,10 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         if product_id not in data["products"]:
             await interaction.response.send_message("El producto no existe.", ephemeral=True)
             return
+        product_name = data["products"][product_id]["name"]
         del data["products"][product_id]
         save_data(data)
+        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Producto {product_name} (ID: {product_id}) eliminado por {interaction.user.name} (ID: {interaction.user.id})")
         await interaction.response.send_message(f"Producto {product_id} eliminado.", ephemeral=True)
 
     @tree.command(name="close", description="Cierra el ticket actual (Owner only)")
@@ -86,6 +90,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         data["tickets"][ticket_id]["status"] = "cerrado"
         data["tickets"][ticket_id]["closed_timestamp"] = datetime.utcnow().isoformat()
         save_data(data)
+        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} cerrado por {interaction.user.name} (ID: {interaction.user.id})")
         
         # Notificar al usuario del ticket que se ha cerrado
         user_id = ticket["user_id"]
@@ -96,15 +101,20 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             # Si no se puede notificar al usuario (por ejemplo, si dejó el servidor o tiene DMs cerrados), ignorar
             pass
         
-        # Eliminar el canal
+        # Eliminar el canal y enviar confirmación
         try:
+            # Enviar confirmación antes de eliminar el canal
+            await interaction.followup.send(f"Ticket #{ticket_id} cerrado. El canal será eliminado.", ephemeral=True)
+            await asyncio.sleep(1)  # Pequeña pausa para asegurar que el mensaje se envíe
             await interaction.channel.delete()
-            # Enviar confirmación al owner en el canal donde se ejecutó el comando (si el canal ya no existe, enviarlo al usuario directamente)
-            await interaction.followup.send(f"Ticket #{ticket_id} cerrado y canal eliminado.", ephemeral=True)
         except discord.Forbidden:
             await interaction.followup.send("Error: No tengo permisos para eliminar el canal. Asegúrate de que tenga permisos para gestionar canales.", ephemeral=True)
+        except discord.NotFound:
+            # El canal ya fue eliminado, ignorar este error
+            pass
         except Exception as e:
-            await interaction.followup.send(f"Error al cerrar el ticket: {str(e)}", ephemeral=True)
+            print(f"Error al cerrar el ticket: {str(e)}")
+            # No intentar enviar mensaje de error ya que el canal podría no existir
 
 
     @tree.command(name="ticket_panel", description="Crea un panel para abrir tickets")
@@ -126,6 +136,81 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             await interaction.response.send_message("Panel de tickets creado exitosamente.", ephemeral=True)
         except discord.Forbidden:
             await interaction.response.send_message("Error: No tengo permisos para enviar mensajes en el canal de tickets.", ephemeral=True)
+
+    @tree.command(name="create_announcement", description="Crea un anuncio con un embed personalizado")
+    @app_commands.default_permissions(administrator=True)
+    @is_owner()
+    async def create_announcement(
+        interaction: discord.Interaction, 
+        channel: discord.TextChannel, 
+        title: str, 
+        description: str, 
+        color: Optional[str] = None, 
+        image_url: Optional[str] = None,
+        thumbnail_url: Optional[str] = None,
+        author_name: Optional[str] = None,
+        author_icon_url: Optional[str] = None,
+        fields: Optional[str] = None
+    ):
+        try:
+            # Validar el color si se proporciona
+            embed_color = None
+            if color:
+                try:
+                    # Convertir el color de hex a decimal
+                    color = color.strip('#')
+                    embed_color = int(color, 16)
+                except ValueError:
+                    await interaction.response.send_message("El color debe estar en formato hexadecimal (ejemplo: #FF0000)", ephemeral=True)
+                    return
+            
+            # Crear el embed
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=embed_color or 0xA100F2  # Usar el color predeterminado si no se proporciona uno
+            )
+            
+            # Añadir imagen principal si se proporciona
+            if image_url:
+                embed.set_image(url=image_url)
+            
+            # Añadir thumbnail si se proporciona
+            if thumbnail_url:
+                embed.set_thumbnail(url=thumbnail_url)
+            
+            # Añadir autor si se proporciona
+            if author_name:
+                embed.set_author(
+                    name=author_name,
+                    icon_url=author_icon_url if author_icon_url else None
+                )
+            
+            # Añadir campos si se proporcionan (formato: "nombre1|valor1;nombre2|valor2")
+            if fields:
+                try:
+                    field_pairs = fields.split(';')
+                    for pair in field_pairs:
+                        name, value = pair.split('|')
+                        embed.add_field(name=name.strip(), value=value.strip(), inline=True)
+                except ValueError:
+                    await interaction.response.send_message(
+                        "Error: El formato de los campos debe ser 'nombre1|valor1;nombre2|valor2'",
+                        ephemeral=True
+                    )
+                    return
+            
+            # Añadir pie de página con la fecha
+            embed.set_footer(text=f"Anuncio creado el {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Enviar el embed al canal especificado
+            await channel.send(embed=embed)
+            await interaction.response.send_message(f"Anuncio enviado exitosamente en {channel.mention}", ephemeral=True)
+            
+        except discord.Forbidden:
+            await interaction.response.send_message("Error: No tengo permisos para enviar mensajes en ese canal.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Error al crear el anuncio: {str(e)}", ephemeral=True)
 
     @tree.command(name="sync", description="Sincroniza manualmente los comandos del bot (Owner only)")
     @app_commands.default_permissions(administrator=True)
