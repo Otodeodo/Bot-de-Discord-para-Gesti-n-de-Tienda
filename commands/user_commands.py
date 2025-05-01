@@ -161,6 +161,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             embed.add_field(name="Método de Pago", value=payment_view.payment_method, inline=True)
             embed.set_footer(text=f"Creado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
             await channel.send(f"<@&{OWNER_ROLE_ID}> Nuevo ticket creado:", embed=embed)
+            print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} creado por {interaction.user.name} (ID: {interaction.user.id}) para el producto {details['name']} con método de pago {payment_view.payment_method}")
             
             await interaction.followup.send(f"Ticket #{ticket_id} creado en {channel.mention}.", ephemeral=True)
         except discord.Forbidden:
