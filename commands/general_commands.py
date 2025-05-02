@@ -29,6 +29,11 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             value="Usa `/help` para ver todos los comandos disponibles.",
             inline=False
         )
+        embed.add_field(
+            name="@AssistantMid",
+            value="Pregúntale tus dudas a Mari!",
+            inline=False
+        )
         embed.set_footer(text=f"ID: {member.id}")
         
         # Intentar enviar el mensaje al canal de sistema
@@ -96,6 +101,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         /ticket - Abre un ticket para comprar un producto.
         /ver-tienda - Muestra los regalos disponibles de la tienda de Fortnite.
         /pago - Muestra la información de pago para los métodos disponibles.
+        @AssistantMid para responder tus dudas.
         **Owners:**
         /add-product [name] [price] [description] - Añade un producto.
         /edit-product [product_id] [name|price|description] - Edita un producto.
