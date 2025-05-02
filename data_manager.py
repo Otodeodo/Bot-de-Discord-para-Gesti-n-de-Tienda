@@ -33,6 +33,16 @@ def load_data():
     except (FileNotFoundError, json.JSONDecodeError):
         return default_data
 
+
+def update_product_availability(product_id, is_available):
+    """Actualiza la disponibilidad de un producto."""
+    data = load_data()
+    if product_id in data["products"]:
+        data["products"][product_id]["available"] = is_available
+        save_data(data)
+        return True
+    return False
+
 def save_data(data):
     global TICKET_COUNTER
     data["ticket_counter"] = TICKET_COUNTER

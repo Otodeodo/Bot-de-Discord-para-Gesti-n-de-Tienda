@@ -14,13 +14,9 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="products", description="Muestra los productos disponibles")
     async def products(interaction: discord.Interaction):
         data = load_data()
-        if not data["products"]:
-            await interaction.response.send_message("No hay productos disponibles. Contacta a un Owner.", ephemeral=True)
-            return
-        
-        items_per_page = 24
         products = list(data["products"].items())
-        pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)]
+        items_per_page = 24
+        pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)] if products else [[]]
         
         view = ProductView(products, pages)
         await interaction.response.send_message(embed=view.create_embed(), view=view, ephemeral=True)
@@ -161,7 +157,6 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             embed.add_field(name="Método de Pago", value=payment_view.payment_method, inline=True)
             embed.set_footer(text=f"Creado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
             await channel.send(f"<@&{OWNER_ROLE_ID}> Nuevo ticket creado:", embed=embed)
-            print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} creado por {interaction.user.name} (ID: {interaction.user.id}) para el producto {details['name']} con método de pago {payment_view.payment_method}")
             
             await interaction.followup.send(f"Ticket #{ticket_id} creado en {channel.mention}.", ephemeral=True)
         except discord.Forbidden:

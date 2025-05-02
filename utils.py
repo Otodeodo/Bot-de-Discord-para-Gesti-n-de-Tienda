@@ -3,7 +3,9 @@ from discord import app_commands
 import requests
 import uuid
 from datetime import datetime
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Dict, List
+import json
+import aiohttp
 
 from config import OWNER_ROLE_ID, FORTNITE_API_URL, FORTNITE_HEADERS
 from data_manager import load_data, save_data  # Esto está bien porque utils.py está en el directorio raíz
