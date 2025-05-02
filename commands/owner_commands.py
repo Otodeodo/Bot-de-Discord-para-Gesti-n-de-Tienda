@@ -49,6 +49,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         save_data(data)
         await interaction.response.send_message(f"Producto {product_id} actualizado.", ephemeral=True)
 
+
     @tree.command(name="delete_product", description="Elimina un producto")
     @app_commands.default_permissions(administrator=True)
     @is_owner()
