@@ -3,12 +3,19 @@ from discord import app_commands
 import asyncio
 from datetime import datetime
 
+import logging
 from data_manager import load_data, save_data, TICKET_COUNTER
 from views.product_view import ProductView
 from views.payment_method_view import PaymentMethodView
 from views.shop_view import ShopView
-from utils import sync_fortnite_shop
+from utils import sync_fortnite_shop, cache_fortnite_shop
 from config import TICKET_CHANNEL_ID, OWNER_ROLE_ID
+
+# Configuración del logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.FileHandler('bot.log'), logging.StreamHandler()])
+logger = logging.getLogger(__name__)
 
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="products", description="Muestra los productos disponibles")
@@ -144,7 +151,13 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
                 "details": details,
                 "payment_method": payment_view.payment_method,
                 "status": "abierto",
-                "timestamp": datetime.utcnow().isoformat()
+                "estado_detallado": "esperando_revision",
+                "timestamp": datetime.utcnow().isoformat(),
+                "historial": [{
+                    "estado": "creado",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "detalles": "Ticket creado por el usuario"
+                }]
             }
             save_data(data)
             
@@ -167,17 +180,47 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="ver_tienda", description="Muestra los regalos disponibles de la tienda de Fortnite")
     async def ver_tienda(interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        sync_success = sync_fortnite_shop()
-        data = load_data()
-        
-        if not data["gifts"]:
-            await interaction.followup.send("La tienda está vacía. Contacta a un Owner para añadir ítems manualmente.", ephemeral=True)
-            return
-        
-        items_per_page = 24
-        gifts = list(data["gifts"].items())
-        pages = [gifts[i:i + items_per_page] for i in range(0, len(gifts), items_per_page)]
-        last_updated = data["shop"].get("last_updated", "Desconocida")
-        
-        view = ShopView(gifts, last_updated, sync_success, pages)
-        await interaction.followup.send(embed=view.create_embed(), view=view, ephemeral=True)
+        try:
+            # Intentar usar caché primero
+            data = load_data()
+            cached_data = cache_fortnite_shop()
+            
+            if cached_data:
+                logger.info("Usando datos en caché de la tienda de Fortnite")
+                data["gifts"].update(cached_data)
+                sync_success = True
+            else:
+                logger.info("Sincronizando datos frescos de la tienda de Fortnite")
+                sync_success = sync_fortnite_shop()
+            data = load_data()
+            
+            if not data or not isinstance(data, dict):
+                await interaction.followup.send("Error al cargar los datos de la tienda. Por favor, intenta más tarde.", ephemeral=True)
+                return
+            
+            # Asegurarse de que data tenga la estructura correcta
+            if "shop" not in data:
+                data["shop"] = {}
+            if "gifts" not in data:
+                data["gifts"] = {}
+                save_data(data)
+            
+            gifts = data["gifts"]
+            if not gifts:
+                await interaction.followup.send("La tienda está vacía. Contacta a un Owner para añadir ítems manualmente.", ephemeral=True)
+                return
+            
+            items_per_page = 24
+            gifts_list = list(gifts.items())
+            # Asegurarse de que la lista no esté vacía y manejar la paginación de forma segura
+            if not gifts_list:
+                pages = [[]]  # Si no hay regalos, crear una página vacía
+            else:
+                pages = [gifts_list[i:i + items_per_page] for i in range(0, len(gifts_list), items_per_page)]
+            last_updated = data.get("shop", {}).get("last_updated", "Desconocida")
+            
+            view = ShopView(gifts_list, last_updated, sync_success, pages)
+            await interaction.followup.send(embed=view.create_embed(), view=view, ephemeral=True)
+        except Exception as e:
+            print(f"Error en el comando ver_tienda: {str(e)}")
+            await interaction.followup.send("Ocurrió un error al mostrar la tienda. Por favor, intenta más tarde.", ephemeral=True)

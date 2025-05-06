@@ -1,8 +1,12 @@
 import discord
 from discord import app_commands
+import logging
 
 from data_manager import load_data, save_data
 from utils import is_owner
+
+# Configuración del logging
+logger = logging.getLogger(__name__)
 
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     @client.event
@@ -47,10 +51,12 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
 
     @tree.command(name="pago", description="Muestra la información de pago para los métodos disponibles")
     async def pago(interaction: discord.Interaction):
+        logger.info(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) solicitó información de pago")
         data = load_data()
         payment_info = data.get("payment_info", {})
         
         if not payment_info:
+            logger.warning("No hay información de pago configurada en el sistema")
             await interaction.response.send_message("No hay información de pago disponible. Contacta a un Owner.", ephemeral=True)
             return
         
@@ -72,28 +78,34 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="add_payment_info", description="Añade o actualiza la información de un método de pago")
     @is_owner()
     async def add_payment_info(interaction: discord.Interaction, method: str, info: str):
+        logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) está actualizando información de pago para el método {method}")
         data = load_data()
         if "payment_info" not in data:
             data["payment_info"] = {}
         
         data["payment_info"][method] = info
         save_data(data)
+        logger.info(f"Información de pago actualizada exitosamente para el método {method}")
         await interaction.response.send_message(f"Información de pago para '{method}' actualizada: {info}", ephemeral=True)
 
     @tree.command(name="remove_payment_info", description="Elimina la información de un método de pago")
     @is_owner()
     async def remove_payment_info(interaction: discord.Interaction, method: str):
+        logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) está intentando eliminar información de pago para el método {method}")
         data = load_data()
         if "payment_info" not in data or method not in data["payment_info"]:
+            logger.warning(f"Intento de eliminar método de pago inexistente: {method}")
             await interaction.response.send_message(f"No hay información de pago para '{method}'.", ephemeral=True)
             return
         
         del data["payment_info"][method]
         save_data(data)
+        logger.info(f"Información de pago eliminada exitosamente para el método {method}")
         await interaction.response.send_message(f"Información de pago para '{method}' eliminada.", ephemeral=True)
 
     @tree.command(name="help", description="Muestra todos los comandos")
     async def help(interaction: discord.Interaction):
+        logger.info(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) solicitó ayuda con los comandos")
         message = """
         === Comandos del Bot ===
         **Usuarios:**
