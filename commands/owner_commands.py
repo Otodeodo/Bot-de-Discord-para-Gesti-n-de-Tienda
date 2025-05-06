@@ -4,18 +4,24 @@ from typing import Optional
 import uuid
 import asyncio
 from datetime import datetime
+import logging
 
 from data_manager import load_data, save_data
 from utils import is_owner
 from views.ticket_panel_view import TicketPanelView
 from config import TICKET_CHANNEL_ID
 
+# Configuración del logging
+logger = logging.getLogger(__name__)
+
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="add_product", description="Añade un nuevo producto")
     @app_commands.default_permissions(administrator=True)
     @is_owner()
     async def add_product(interaction: discord.Interaction, name: str, price: float, description: str, image_url: Optional[str] = None):
+        logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) está añadiendo un nuevo producto: {name}")
         if price <= 0:
+            logger.warning(f"Intento de añadir producto con precio inválido: {price}")
             await interaction.response.send_message("El precio debe ser positivo.", ephemeral=True)
             return
         data = load_data()
@@ -27,26 +33,33 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             "image_url": image_url
         }
         save_data(data)
-        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Producto {name} (ID: {product_id}) añadido por {interaction.user.name} (ID: {interaction.user.id}) - Precio: ${price:.2f} MXN")
+        logger.info(f"Producto {name} (ID: {product_id}) añadido exitosamente - Precio: ${price:.2f} MXN")
         await interaction.response.send_message(f"Producto '{name}' añadido (ID: {product_id}).", ephemeral=True)
 
     @tree.command(name="edit_product", description="Edita un producto existente")
     @app_commands.default_permissions(administrator=True)
     @is_owner()
     async def edit_product(interaction: discord.Interaction, product_id: str, name: Optional[str], price: Optional[float], description: Optional[str], image_url: Optional[str] = None):
+        logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) está editando el producto {product_id}")
         data = load_data()
         if product_id not in data["products"]:
+            logger.warning(f"Intento de editar producto inexistente con ID: {product_id}")
             await interaction.response.send_message("El producto no existe.", ephemeral=True)
             return
         if name:
             data["products"][product_id]["name"] = name
-        if price is not None and price > 0:
+        if price is not None:
+            if price <= 0:
+                logger.warning(f"Intento de actualizar producto con precio inválido: {price}")
+                await interaction.response.send_message("El precio debe ser positivo.", ephemeral=True)
+                return
             data["products"][product_id]["price"] = price
         if description:
             data["products"][product_id]["description"] = description
         if image_url is not None:
             data["products"][product_id]["image_url"] = image_url
         save_data(data)
+        logger.info(f"Producto {product_id} actualizado exitosamente")
         await interaction.response.send_message(f"Producto {product_id} actualizado.", ephemeral=True)
 
 
@@ -54,14 +67,16 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @app_commands.default_permissions(administrator=True)
     @is_owner()
     async def delete_product(interaction: discord.Interaction, product_id: str):
+        logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) está intentando eliminar el producto {product_id}")
         data = load_data()
         if product_id not in data["products"]:
+            logger.warning(f"Intento de eliminar producto inexistente con ID: {product_id}")
             await interaction.response.send_message("El producto no existe.", ephemeral=True)
             return
         product_name = data["products"][product_id]["name"]
         del data["products"][product_id]
         save_data(data)
-        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Producto {product_name} (ID: {product_id}) eliminado por {interaction.user.name} (ID: {interaction.user.id})")
+        logger.info(f"Producto {product_name} (ID: {product_id}) eliminado exitosamente")
         await interaction.response.send_message(f"Producto {product_id} eliminado.", ephemeral=True)
 
     @tree.command(name="close", description="Cierra el ticket actual (Owner only)")

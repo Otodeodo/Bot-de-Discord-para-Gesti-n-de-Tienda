@@ -6,6 +6,71 @@ from datetime import datetime
 from typing import Optional, Callable, Any, Dict, List
 import json
 import aiohttp
+import logging
+from functools import wraps
+import asyncio
+
+# Configuración del sistema de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('DiscordBot')
+
+# Decorador para reintentos en operaciones críticas
+def retry_operation(max_retries: int = 3, delay: float = 1.0):
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        logger.error(f'Error en {func.__name__} después de {max_retries} intentos: {str(e)}')
+                        raise
+                    logger.warning(f'Intento {attempt + 1} fallido para {func.__name__}: {str(e)}')
+                    await asyncio.sleep(delay)
+            return None
+        return wrapper
+    return decorator
+
+# Función para enviar notificaciones por DM
+async def send_dm_notification(user: discord.User, message: str) -> bool:
+    try:
+        await user.send(message)
+        logger.info(f'Notificación enviada a {user.name} (ID: {user.id})')
+        return True
+    except Exception as e:
+        logger.error(f'Error al enviar DM a {user.name} (ID: {user.id}): {str(e)}')
+        return False
+
+# Validador de permisos de usuario
+def check_user_permissions(user_id: str, required_id: str) -> bool:
+    try:
+        return str(user_id) == str(required_id)
+    except Exception as e:
+        logger.error(f'Error en validación de permisos: {str(e)}')
+        return False
+
+# Manejador de respuestas de interacción
+async def handle_interaction_response(interaction: discord.Interaction, message: str, ephemeral: bool = True):
+    try:
+        await interaction.response.send_message(message, ephemeral=ephemeral)
+        logger.debug(f'Respuesta enviada a {interaction.user.name}: {message}')
+    except Exception as e:
+        logger.error(f'Error al enviar respuesta de interacción: {str(e)}')
+        try:
+            await interaction.response.send_message(
+                "Ha ocurrido un error al procesar tu solicitud.",
+                ephemeral=True
+            )
+        except:
+            pass
 
 from config import OWNER_ROLE_ID, FORTNITE_API_URL, FORTNITE_HEADERS
 from data_manager import load_data, save_data  # Esto está bien porque utils.py está en el directorio raíz
@@ -54,11 +119,36 @@ def sync_fortnite_shop():
                 "name": item.get("displayName", "Desconocido"),
                 "price": item.get("price", {}).get("finalPrice", 0),
                 "image_url": item.get("displayAssets", [{}])[0].get("url", ""),
-                "source": "fortnite_api"
+                "source": "fortnite_api",
+                "last_updated": datetime.utcnow().isoformat()
             }
         data["shop"]["last_updated"] = datetime.utcnow().isoformat()
+        
+        # Guardar en caché
+        with open('fortnite_shop_cache.json', 'w', encoding='utf-8') as f:
+            json.dump(data["gifts"], f)
+            
         save_data(data)
         return True
     except requests.RequestException as e:
-        print(f"Error al sincronizar tienda: {e}")
+        logger.error(f"Error al sincronizar tienda: {e}")
         return False
+
+def cache_fortnite_shop():
+    """Obtiene los datos de la tienda desde el caché si están disponibles y son recientes."""
+    try:
+        with open('fortnite_shop_cache.json', 'r', encoding='utf-8') as f:
+            cached_data = json.load(f)
+            
+        # Verificar si los datos en caché son recientes (menos de 1 hora)
+        for item in cached_data.values():
+            last_updated = datetime.fromisoformat(item.get('last_updated', '2000-01-01'))
+            if (datetime.utcnow() - last_updated).total_seconds() > 3600:
+                logger.info("Caché de la tienda expirado")
+                return None
+                
+        logger.info("Usando datos en caché de la tienda")
+        return cached_data
+    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        logger.warning(f"Error al leer caché de la tienda: {e}")
+        return None
