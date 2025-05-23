@@ -11,6 +11,12 @@ logger = logging.getLogger(__name__)
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     @client.event
     async def on_member_join(member):
+        # Verificar si el canal de sistema existe antes de crear el embed
+        system_channel = member.guild.system_channel
+        if not system_channel:
+            print(f"No se pudo enviar mensaje de bienvenida: No hay canal de sistema configurado")
+            return
+
         embed = discord.Embed(
             title="👋 ¡Bienvenido a nuestro servidor!",
             description=f"¡Hola {member.mention}! Gracias por unirte a nuestra comunidad.",
@@ -40,11 +46,8 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         )
         embed.set_footer(text=f"ID: {member.id}")
         
-        # Intentar enviar el mensaje al canal de sistema
         try:
-            system_channel = member.guild.system_channel
-            if system_channel:
-                await system_channel.send(embed=embed)
+            await system_channel.send(embed=embed)
         except Exception as e:
             print(f"Error al enviar mensaje de bienvenida: {e}")
 
