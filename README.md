@@ -87,7 +87,7 @@ Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) pa
 
 ## 👨‍💻 Creador
 
-Desarrollado con ❤️ por [@__totooo](https://github.com/__totooo)
+Desarrollado con ❤️ por [@__totooo]([https://github.com/__totooo](https://github.com/Otodeodo))
 
 ---
 
