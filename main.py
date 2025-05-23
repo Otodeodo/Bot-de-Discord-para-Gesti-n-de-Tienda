@@ -37,28 +37,66 @@ async def on_ready():
     except Exception as e:
         print(e)
 
+# Diccionario para almacenar el último mensaje procesado por usuario
+last_processed_messages = {}
+
 @client.event
 async def on_message(message):
     # Ignorar mensajes del propio bot
     if message.author == client.user:
         return
 
-    # Verificar si el bot fue mencionado
+    # Obtener el ID del usuario y el contenido del mensaje
+    user_id = str(message.author.id)
+    content = message.content.lower()
+
+    # Palabras clave para detectar
+    keywords = {
+        'ayuda': ['ayuda', 'help', 'comandos', 'qué haces', 'que haces'],
+        'compra': ['comprar', 'adquirir', 'precio', 'costo', 'cuánto', 'cuanto', 'ticket'],
+        'admin': ['admin', 'administrador', 'moderador', 'staff'],
+        'productos': ['productos', 'catálogo', 'catalogo', 'qué vendes', 'que vendes']
+    }
+
+    # Verificar si el mensaje contiene palabras clave
+    for category, words in keywords.items():
+        if any(word in content for word in words):
+            try:
+                response = await chat_manager.get_response(user_id, content)
+                await message.reply(response)
+                return
+            except Exception as e:
+                print(f'Error al procesar mensaje con palabra clave: {str(e)}')
+                await message.reply(
+                    'Lo siento, ha ocurrido un error al procesar tu mensaje. '
+                    'Por favor, inténtalo de nuevo más tarde.'
+                )
+                return
+
+    # Si no hay palabras clave, verificar si el bot fue mencionado
     if client.user.mentioned_in(message):
-        # Eliminar la mención del bot del mensaje
         content = message.content.replace(f'<@{client.user.id}>', '').strip()
+        
+        # Verificar si es un mensaje vacío
         if not content:
             await message.reply('¡Hola! ¿En qué puedo ayudarte?')
             return
+        
+        # Verificar si es un mensaje duplicado
+        if user_id in last_processed_messages:
+            last_message, last_time = last_processed_messages[user_id]
+            if content == last_message and (message.created_at - last_time).total_seconds() < 5:
+                # Ignorar mensajes duplicados enviados en menos de 5 segundos
+                return
+        
+        # Actualizar el último mensaje procesado
+        last_processed_messages[user_id] = (content, message.created_at)
 
         # Mostrar indicador de escritura
         async with message.channel.typing():
             try:
                 # Obtener respuesta del ChatManager
-                response = await chat_manager.get_response(
-                    str(message.author.id),
-                    content
-                )
+                response = await chat_manager.get_response(user_id, content)
                 
                 # Enviar la respuesta
                 await message.reply(response)
