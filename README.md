@@ -81,9 +81,7 @@ python main.py
 3. Realiza tus cambios
 4. Envía un pull request
 
-## 📜 Licencia
 
-Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para más detalles.
 
 ## 👨‍💻 Creador
 
