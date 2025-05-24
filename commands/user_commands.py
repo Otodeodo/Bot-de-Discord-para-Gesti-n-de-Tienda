@@ -5,8 +5,8 @@ from datetime import datetime
 
 import logging
 from data_manager import load_data, save_data, TICKET_COUNTER
-from views.product_view import ProductView
-from views.payment_method_view import PaymentMethodView
+from views.enhanced_product_view import EnhancedProductView
+from views.enhanced_ticket_view import EnhancedTicketView
 from views.shop_view import ShopView
 from utils import sync_fortnite_shop, cache_fortnite_shop
 from config import TICKET_CHANNEL_ID, OWNER_ROLE_ID
@@ -25,7 +25,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         items_per_page = 24
         pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)] if products else [[]]
         
-        view = ProductView(products, pages)
+        view = EnhancedProductView(products, pages)
         await interaction.response.send_message(embed=view.create_embed(), view=view, ephemeral=True)
 
     @tree.command(name="ticket", description="Abre un ticket para comprar un producto")
@@ -34,6 +34,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         data = load_data()
         user_id = str(interaction.user.id)
         
+        # Verificar si ya tiene un ticket abierto
         for ticket_id, ticket in data["tickets"].items():
             if ticket["user_id"] == user_id and ticket["status"] == "abierto":
                 await interaction.followup.send("Ya tienes un ticket abierto. Por favor, espera a que se resuelva.", ephemeral=True)
@@ -43,82 +44,22 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             await interaction.followup.send("No hay productos disponibles. Contacta a un Owner.", ephemeral=True)
             return
         
+        # Mostrar productos con vista mejorada
         items_per_page = 24
         products = list(data["products"].items())
         pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)]
-        view = ProductView(products, pages)
+        view = EnhancedProductView(products, pages)
         embed = view.create_embed()
-        embed.description += "\n\nPor favor, ingresa el **nombre del producto** que deseas comprar (por ejemplo, `crunchyroll`). Si hay productos con nombres similares, te pediremos que uses el ID para confirmar:"
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-
-        try:
-            message = await client.wait_for(
-                "message",
-                check=lambda m: m.author.id == interaction.user.id and m.channel.id == interaction.channel.id,
-                timeout=120
-            )
-        except asyncio.TimeoutError:
-            await interaction.followup.send("Tiempo agotado para seleccionar el producto.", ephemeral=True)
-            return
-        
-        product_name = message.content.strip().lower()
-        matching_products = [(pid, prod) for pid, prod in data["products"].items() if prod["name"].lower() == product_name]
-
-        if not matching_products:
-            await interaction.followup.send("No se encontró un producto con ese nombre. Usa /products para ver la lista de productos.", ephemeral=True)
-            return
-        
-        if len(matching_products) > 1:
-            embed = discord.Embed(
-                title="⚠️ Múltiples Productos Encontrados",
-                description="Se encontraron varios productos con ese nombre. Por favor, ingresa el **ID** del producto que deseas (copia y pega el ID):",
-                color=0xA100F2
-            )
-            for product_id, product in matching_products:
-                embed.add_field(
-                    name=f"{product['name']} (ID: {product_id})",
-                    value=f"Precio: ${product['price']:.2f} MXN\nDescripción: {product['description']}",
-                    inline=True
-                )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-            try:
-                message = await client.wait_for(
-                    "message",
-                    check=lambda m: m.author.id == interaction.user.id and m.channel.id == interaction.channel.id,
-                    timeout=120
-                )
-            except asyncio.TimeoutError:
-                await interaction.followup.send("Tiempo agotado para seleccionar el producto.", ephemeral=True)
-                return
-            
-            product_id = message.content.strip()
-            if product_id not in data["products"]:
-                await interaction.followup.send("El ID del producto no es válido. Usa /products para ver los IDs.", ephemeral=True)
-                return
-        else:
-            product_id, _ = matching_products[0]
-
-        product = data["products"][product_id]
-        details = {"product_id": product_id, "name": product["name"], "price": product["price"]}
-
-        embed = discord.Embed(
-            title="💳 Seleccionar Método de Pago",
-            description="Elige tu método de pago preferido:",
-            color=0xA100F2
-        )
-        payment_view = PaymentMethodView(interaction.user.id)
-        await interaction.followup.send(embed=embed, view=payment_view, ephemeral=True)
-        
-        await payment_view.wait()
-        if payment_view.payment_method is None:
-            await interaction.followup.send("No se seleccionó un método de pago. Ticket cancelado.", ephemeral=True)
-            return
         
         try:
+            # Cargar datos y actualizar contador de tickets
+            data = load_data()
             global TICKET_COUNTER
-            TICKET_COUNTER += 1
+            TICKET_COUNTER = data.get("ticket_counter", 0) + 1
             ticket_id = f"ticket-{TICKET_COUNTER:04d}"
+            data["ticket_counter"] = TICKET_COUNTER
+            save_data(data)
             
             overwrites = {
                 interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),

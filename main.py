@@ -10,6 +10,7 @@ from config import DISCORD_TOKEN, intents
 from commands.owner_commands import setup as setup_owner_commands
 from commands.user_commands import setup as setup_user_commands
 from commands.general_commands import setup as setup_general_commands
+from commands.category_commands import setup as setup_category_commands
 from utils import setup_error_handlers
 from chatgpt_chat import chat_manager
 
@@ -22,6 +23,7 @@ async def setup():
     setup_owner_commands(tree, client)
     setup_user_commands(tree, client)
     setup_general_commands(tree, client)
+    setup_category_commands(tree, client)
     await setup_error_handlers(tree)
 
 # La configuración se ejecutará en la función main
