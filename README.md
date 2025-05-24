@@ -81,18 +81,13 @@ python main.py
 3. Realiza tus cambios
 4. Envía un pull request
 
-## 📜 Licencia
-
-Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para más detalles.
 
 ## 👨‍💻 Creador
 
-Desarrollado con ❤️ por [@__totooo](https://github.com/__totooo)
+Desarrollado con ❤️ por [@__totooo]([https://github.com/__totooo](https://github.com/Otodeodo))
 
----
 
 <div align="center">
 
 **¡Únete a nuestra comunidad gaming y disfruta de una experiencia única!**
 
-</div>
