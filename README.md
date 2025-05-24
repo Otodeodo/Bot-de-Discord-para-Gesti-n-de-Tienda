@@ -82,15 +82,12 @@ python main.py
 4. Envía un pull request
 
 
-
 ## 👨‍💻 Creador
 
 Desarrollado con ❤️ por [@__totooo]([https://github.com/__totooo](https://github.com/Otodeodo))
 
----
 
 <div align="center">
 
 **¡Únete a nuestra comunidad gaming y disfruta de una experiencia única!**
 
-</div>

@@ -5,11 +5,9 @@ import uuid
 import asyncio
 from datetime import datetime
 import logging
-
 from data_manager import load_data, save_data
 from utils import is_owner
-from views.ticket_panel_view import TicketPanelView
-from config import TICKET_CHANNEL_ID
+
 
 # Configuración del logging
 logger = logging.getLogger(__name__)
@@ -79,84 +77,6 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         logger.info(f"Producto {product_name} (ID: {product_id}) eliminado exitosamente")
         await interaction.response.send_message(f"Producto {product_id} eliminado.", ephemeral=True)
 
-    @tree.command(name="close", description="Cierra el ticket actual (Owner only)")
-    @app_commands.default_permissions(administrator=True)
-    @is_owner()
-    async def close(interaction: discord.Interaction):
-        try:
-            # Deferir la respuesta para evitar el timeout de 3 segundos
-            await interaction.response.defer(ephemeral=True)
-
-            data = load_data()
-            channel_id = str(interaction.channel.id)
-            
-            # Buscar el ticket asociado con este canal
-            ticket = None
-            ticket_id = None
-            for tid, t in data["tickets"].items():
-                if t["channel_id"] == channel_id and t["status"] == "abierto":
-                    ticket = t
-                    ticket_id = tid
-                    break
-            
-            if not ticket:
-                await interaction.followup.send("Este canal no es un ticket abierto o no existe.", ephemeral=True)
-                return
-            
-            # Actualizar el estado del ticket a "cerrado"
-            data["tickets"][ticket_id]["status"] = "cerrado"
-            data["tickets"][ticket_id]["closed_timestamp"] = datetime.utcnow().isoformat()
-            save_data(data)
-            print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] Ticket #{ticket_id} cerrado por {interaction.user.name} (ID: {interaction.user.id})")
-            
-            # Notificar al usuario del ticket que se ha cerrado
-            user_id = ticket["user_id"]
-            try:
-                user = await interaction.guild.fetch_member(int(user_id))
-                await user.send(f"Tu ticket #{ticket_id} ha sido cerrado por un Owner.")
-            except (discord.NotFound, discord.Forbidden):
-                # Si no se puede notificar al usuario, ignorar
-                pass
-            
-            # Eliminar el canal
-            try:
-                await interaction.channel.delete()
-                return  # Salir después de eliminar el canal para evitar más interacciones
-            except discord.Forbidden:
-                await interaction.followup.send("Error: No tengo permisos para eliminar el canal.", ephemeral=True)
-            except discord.NotFound:
-                # El canal ya fue eliminado, ignorar
-                pass
-            except Exception as e:
-                print(f"Error al eliminar el canal del ticket: {str(e)}")
-                await interaction.followup.send(f"Error al eliminar el canal: {str(e)}", ephemeral=True)
-
-        except Exception as e:
-            print(f"Error en el comando close: {str(e)}")
-            # Solo intentar enviar mensaje de error si la interacción no ha sido respondida
-            if not interaction.response.is_done():
-                await interaction.response.send_message(f"Error al cerrar el ticket: {str(e)}", ephemeral=True)
-
-
-    @tree.command(name="ticket_panel", description="Crea un panel para abrir tickets")
-    @app_commands.default_permissions(administrator=True)
-    @is_owner()
-    async def ticket_panel(interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="🎟️ Sistema de Tickets",
-            description="Haz clic en el botón para abrir un ticket de compra.",
-            color=0xA100F2
-        )
-        view = TicketPanelView()
-        channel = client.get_channel(TICKET_CHANNEL_ID)
-        if not channel:
-            await interaction.response.send_message("Error: El canal de tickets no está configurado correctamente.", ephemeral=True)
-            return
-        try:
-            await channel.send(embed=embed, view=view)
-            await interaction.response.send_message("Panel de tickets creado exitosamente.", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.response.send_message("Error: No tengo permisos para enviar mensajes en el canal de tickets.", ephemeral=True)
 
     @tree.command(name="create_announcement", description="Crea un anuncio con un embed personalizado")
     @app_commands.default_permissions(administrator=True)
