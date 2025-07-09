@@ -1,10 +1,16 @@
 import os
 from openai import AsyncOpenAI
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from config import OPENAI_API_KEY
 from data_manager import load_data, save_data
 from datetime import datetime
 import uuid
+from data_manager import get_roblox_account
+from commands.user_commands import calculate_days_since_creation
+import base64
+import aiohttp
+from PIL import Image
+import io
 
 class ChatManager:
     def __init__(self):
@@ -58,9 +64,9 @@ class ChatManager:
                 "¡Que tengas un día increíble! 🌟 ¡Vuelve cuando quieras, siempre es un gusto charlar contigo!"
             ],
             "compras": [
-                "¡Excelente elección! 🛒 Permíteme ayudarte con los detalles en un ticket privado. ¿Te parece?",
-                "¡Genial! ✨ Podemos discutir todos los detalles en un ticket personal. ¿Te gustaría crearlo ahora?",
-                "¡Perfecto! 🌟 Déjame ayudarte con tu compra en un espacio más privado. ¿Creamos un ticket?"
+                "¡Excelente elección! 🛒 Para realizar una compra, por favor usa el comando `/ticket` y podremos ayudarte con todos los detalles.",
+                "¡Genial! ✨ Si quieres comprar algo, simplemente escribe `/ticket` y te atenderemos personalmente.",
+                "¡Perfecto! 🌟 Para proceder con tu compra, usa el comando `/ticket` y te ayudaremos de inmediato."
             ],
             "productos": [
                 "¡Tenemos opciones increíbles! 🎮 ¿Te gustaría explorar nuestro catálogo juntos?",
@@ -216,9 +222,186 @@ class ChatManager:
         if any(word in message for word in ['ayuda', 'help', 'comandos', 'qué haces', 'que haces']):
             return get_random_response("ayuda")
         
+        # Verificación de elegibilidad para Robux
+        if any(word in message for word in ['robux', 'elegible', 'elegibilidad', '15 días', '15 dias', 'cuándo robux', 'cuando robux', 'puedo robux', 'soy elegible']):
+            return self._check_robux_eligibility(user_id)
+        
         return None
 
-    async def get_response(self, user_id: str, message: str) -> str:
+    def _check_robux_eligibility(self, user_id: str) -> str:
+        """Verifica la elegibilidad para Robux de un usuario específico."""
+        try:
+            # Asegurar que user_id sea string
+            user_id = str(user_id)
+            
+            # Obtener la cuenta de Roblox vinculada
+            roblox_account = get_roblox_account(user_id)
+            
+            if not roblox_account:
+                return ("🎮 ¡Hola mi elfo/a! Para verificar tu elegibilidad para Robux, "
+                       "primero necesitas vincular tu cuenta de Roblox usando el comando `/vincular` prro :v\n\n"
+                       "✨ Una vez vinculada, podrás verificar tu estado de elegibilidad cuando quieras!")
+            
+            # Obtener información de la cuenta
+            username = roblox_account.get('roblox_display_name', roblox_account.get('display_name', 'Usuario'))
+            created_date_str = roblox_account.get('roblox_created', roblox_account.get('created'))
+            
+            if not created_date_str:
+                return ("❌ Ups mi elfo/a, no pude obtener la fecha de creación de tu cuenta de Roblox. "
+                       "Intenta vincular tu cuenta nuevamente con `/vincular` prro :v")
+            
+            # Calcular días desde la creación
+            try:
+                days_since_creation = calculate_days_since_creation(created_date_str)
+                
+                # Verificar si hubo error en el cálculo
+                if days_since_creation == 0 and created_date_str:
+                    return ("❌ Ups mi elfo/a, hubo un problema al procesar la fecha de creación de tu cuenta. "
+                           "Intenta usar el comando `/micuenta` para más detalles prro :v")
+                
+                # Verificar elegibilidad
+                if days_since_creation >= 15:
+                    return (f"🎉 ¡Excelentes noticias **{username}**! Tu cuenta de Roblox ya es elegible para Robux prro :v\n\n"
+                           f"📊 **Estado de tu cuenta:**\n"
+                           f"```yaml\n"
+                           f"Usuario: {username}\n"
+                           f"Días desde creación: {days_since_creation}\n"
+                           f"Estado: ✅ Elegible para Robux\n"
+                           f"```\n\n"
+                           f"🎮 Puedes usar el comando `/micuenta` para ver todos los detalles de tu cuenta mi elfo/a!\n"
+                           f"✨ ¡Ya puedes participar en eventos y sorteos de Robux!")
+                else:
+                    days_remaining = 15 - days_since_creation
+                    return (f"⏰ ¡Hola **{username}**! Tu cuenta de Roblox aún no es elegible para Robux prro :v\n\n"
+                           f"📊 **Estado de tu cuenta:**\n"
+                           f"```yaml\n"
+                           f"Usuario: {username}\n"
+                           f"Días desde creación: {days_since_creation}\n"
+                           f"Días restantes: {days_remaining}\n"
+                           f"Estado: ⏳ Pendiente de elegibilidad\n"
+                           f"```\n\n"
+                           f"🔔 ¡No te preocupes mi elfo/a! Te notificaré automáticamente cuando seas elegible.\n"
+                           f"📱 También puedes usar `/micuenta` para verificar tu estado cuando quieras!")
+                           
+            except Exception as e:
+                return ("❌ Ups mi elfo/a, hubo un error al calcular los días de tu cuenta. "
+                       f"Intenta usar el comando `/micuenta` para más detalles prro :v")
+                       
+        except Exception as e:
+            return ("❌ Oops mi elfo/a, ocurrió un error al verificar tu elegibilidad. "
+                   "Intenta usar el comando `/micuenta` o contacta a un administrador prro :v")
+
+    async def _process_image_url(self, image_url: str) -> Optional[str]:
+        """Procesa una imagen desde URL y la convierte a base64 para OpenAI Vision."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        
+                        # Verificar que sea una imagen válida
+                        try:
+                            image = Image.open(io.BytesIO(image_data))
+                            # Redimensionar si es muy grande (máximo 2048x2048)
+                            if image.width > 2048 or image.height > 2048:
+                                image.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
+                                
+                                # Convertir de vuelta a bytes
+                                img_byte_arr = io.BytesIO()
+                                image.save(img_byte_arr, format=image.format or 'PNG')
+                                image_data = img_byte_arr.getvalue()
+                            
+                            # Convertir a base64
+                            base64_image = base64.b64encode(image_data).decode('utf-8')
+                            return base64_image
+                        except Exception as e:
+                            print(f"Error al procesar imagen: {e}")
+                            return None
+                    else:
+                        print(f"Error al descargar imagen: {response.status}")
+                        return None
+        except Exception as e:
+            print(f"Error al procesar imagen desde URL: {e}")
+            return None
+
+    async def _process_images_with_vision(self, user_id: str, message: str, image_urls: List[str]) -> str:
+        """Procesa imágenes usando OpenAI Vision API."""
+        try:
+            # Procesar las imágenes
+            processed_images = []
+            for image_url in image_urls[:4]:  # Máximo 4 imágenes
+                base64_image = await self._process_image_url(image_url)
+                if base64_image:
+                    processed_images.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}",
+                            "detail": "high"
+                        }
+                    })
+            
+            if not processed_images:
+                return "❌ No pude procesar las imágenes que enviaste mi elfo/a. Asegúrate de que sean imágenes válidas prro :v"
+            
+            # Crear el contenido del mensaje con texto e imágenes
+            content = [{"type": "text", "text": message or "¿Qué ves en esta imagen?"}]
+            content.extend(processed_images)
+            
+            # Obtener o crear el historial de conversación del usuario
+            if user_id not in self.conversations:
+                self.conversations[user_id] = []
+            
+            # Crear el mensaje del sistema específico para análisis de imágenes
+            system_message = {
+                "role": "system", 
+                "content": f"""Eres Mari, la asistente virtual de {self.store_context['store_name']} 🎮. 
+                
+Cuando analices imágenes:
+                - Describe lo que ves de manera detallada y útil
+                - Si es una captura de pantalla de un juego, identifica el juego si es posible
+                - Si ves productos gaming, menciona si los tienes disponibles en la tienda
+                - Mantén un tono divertido y papulince pero profesional prro :v
+                - Usa emojis para hacer la respuesta más visual
+                - Si detectas problemas técnicos en juegos, ofrece ayuda
+                - Si ves logros o estadísticas, felicita al usuario
+                
+Siempre responde en español y mantén el tono característico de Mari."""
+            }
+            
+            # Crear los mensajes para la API
+            messages = [system_message, {"role": "user", "content": content}]
+            
+            # Llamar a la API de OpenAI Vision
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.7
+            )
+            
+            # Extraer la respuesta
+            assistant_message = response.choices[0].message.content
+            
+            # Añadir al historial (solo el texto, no las imágenes por limitaciones de almacenamiento)
+            self.conversations[user_id].append({"role": "user", "content": f"[Imagen enviada] {message}"})
+            self.conversations[user_id].append({"role": "assistant", "content": assistant_message})
+            
+            # Mantener el historial limitado
+            if len(self.conversations[user_id]) > 20:
+                self.conversations[user_id] = self.conversations[user_id][-20:]
+            
+            return assistant_message
+            
+        except Exception as e:
+            print(f"Error al procesar imágenes con Vision API: {str(e)}")
+            return ("❌ Ups mi elfo/a, hubo un problema al analizar tu imagen. "
+                   "Intenta enviarla de nuevo o contacta a un administrador prro :v")
+
+    async def get_response(self, user_id: str, message: str, image_urls: Optional[List[str]] = None) -> str:
+        # Si hay imágenes, procesarlas con Vision API
+        if image_urls and len(image_urls) > 0:
+            return await self._process_images_with_vision(user_id, message, image_urls)
+        
         # Verificar si hay una respuesta básica disponible
         basic_response = self._get_basic_response(message, user_id)
         if basic_response:

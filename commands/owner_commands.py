@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 from data_manager import load_data, save_data
 from utils import is_owner
+from reminder_system import get_reminder_system
 
 
 # Configuración del logging
@@ -166,3 +167,203 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
             await interaction.followup.send("Comandos sincronizados exitosamente en este servidor y globalmente.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Error al sincronizar comandos: {str(e)}", ephemeral=True)
+
+    @tree.command(name="reminder_stats", description="Muestra estadísticas del sistema de recordatorios (Owner only)")
+    @app_commands.default_permissions(administrator=True)
+    @is_owner()
+    async def reminder_stats(interaction: discord.Interaction):
+        """Muestra estadísticas del sistema de recordatorios de Robux."""
+        try:
+            reminder_system = get_reminder_system()
+            if not reminder_system:
+                await interaction.response.send_message("❌ Sistema de recordatorios no inicializado.", ephemeral=True)
+                return
+                
+            stats = reminder_system.get_reminder_stats()
+            if not stats:
+                await interaction.response.send_message("❌ Error al obtener estadísticas.", ephemeral=True)
+                return
+                
+            embed = discord.Embed(
+                title="📊 Estadísticas del Sistema de Recordatorios",
+                color=0x00FF00 if stats['is_running'] else 0xFF0000
+            )
+            
+            embed.add_field(
+                name="🔄 Estado del Sistema",
+                value=f"```yaml\n"
+                      f"Estado: {'🟢 Activo' if stats['is_running'] else '🔴 Inactivo'}\n"
+                      f"```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="📈 Estadísticas Generales",
+                value=f"```yaml\n"
+                      f"Cuentas vinculadas: {stats['total_linked_accounts']}\n"
+                      f"Usuarios recordados: {stats['total_reminded']}\n"
+                      f"Elegibles sin recordar: {stats['eligible_not_reminded']}\n"
+                      f"```",
+                inline=False
+            )
+            
+            embed.set_footer(
+                text="Sistema de Recordatorios • GameMid",
+                icon_url="https://cdn.discordapp.com/attachments/1234567890/roblox_icon.png"
+            )
+            embed.timestamp = datetime.utcnow()
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logger.error(f"Error en reminder_stats: {e}")
+            await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+    @tree.command(name="reminder_control", description="Controla el sistema de recordatorios (Owner only)")
+    @app_commands.describe(action="Acción a realizar: start, stop, restart")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Iniciar", value="start"),
+        app_commands.Choice(name="Detener", value="stop"),
+        app_commands.Choice(name="Reiniciar", value="restart")
+    ])
+    @app_commands.default_permissions(administrator=True)
+    @is_owner()
+    async def reminder_control(interaction: discord.Interaction, action: str):
+        """Controla el estado del sistema de recordatorios."""
+        try:
+            reminder_system = get_reminder_system()
+            if not reminder_system:
+                await interaction.response.send_message("❌ Sistema de recordatorios no inicializado.", ephemeral=True)
+                return
+                
+            await interaction.response.defer(ephemeral=True)
+            
+            if action == "start":
+                if reminder_system.is_running:
+                    await interaction.followup.send("⚠️ El sistema de recordatorios ya está ejecutándose.", ephemeral=True)
+                else:
+                    await reminder_system.start_reminder_system()
+                    await interaction.followup.send("✅ Sistema de recordatorios iniciado exitosamente.", ephemeral=True)
+                    
+            elif action == "stop":
+                if not reminder_system.is_running:
+                    await interaction.followup.send("⚠️ El sistema de recordatorios ya está detenido.", ephemeral=True)
+                else:
+                    await reminder_system.stop_reminder_system()
+                    await interaction.followup.send("🛑 Sistema de recordatorios detenido exitosamente.", ephemeral=True)
+                    
+            elif action == "restart":
+                await reminder_system.stop_reminder_system()
+                await asyncio.sleep(2)  # Esperar un poco antes de reiniciar
+                await reminder_system.start_reminder_system()
+                await interaction.followup.send("🔄 Sistema de recordatorios reiniciado exitosamente.", ephemeral=True)
+                
+        except Exception as e:
+            logger.error(f"Error en reminder_control: {e}")
+            await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
+
+    @tree.command(name="send_manual_reminder", description="Envía un recordatorio manual a un usuario (Owner only)")
+    @app_commands.describe(user="Usuario al que enviar el recordatorio")
+    @app_commands.default_permissions(administrator=True)
+    @is_owner()
+    async def send_manual_reminder(interaction: discord.Interaction, user: discord.User):
+        """Envía un recordatorio manual de elegibilidad para Robux a un usuario específico."""
+        try:
+            reminder_system = get_reminder_system()
+            if not reminder_system:
+                await interaction.response.send_message("❌ Sistema de recordatorios no inicializado.", ephemeral=True)
+                return
+                
+            await interaction.response.defer(ephemeral=True)
+            
+            success, message = await reminder_system.send_manual_reminder(str(user.id))
+            
+            if success:
+                embed = discord.Embed(
+                    title="✅ Recordatorio Enviado",
+                    description=f"Recordatorio de elegibilidad para Robux enviado exitosamente a {user.mention}.",
+                    color=0x00FF00
+                )
+                embed.add_field(
+                    name="👤 Usuario",
+                    value=f"**Nombre:** {user.display_name}\n**ID:** {user.id}",
+                    inline=False
+                )
+                embed.set_footer(text="Sistema de Recordatorios • GameMid")
+                embed.timestamp = datetime.utcnow()
+                
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                embed = discord.Embed(
+                    title="❌ Error al Enviar Recordatorio",
+                    description=f"No se pudo enviar el recordatorio a {user.mention}.",
+                    color=0xFF0000
+                )
+                embed.add_field(
+                    name="🔍 Razón",
+                    value=message,
+                    inline=False
+                )
+                embed.set_footer(text="Sistema de Recordatorios • GameMid")
+                embed.timestamp = datetime.utcnow()
+                
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+        except Exception as e:
+            logger.error(f"Error en send_manual_reminder: {e}")
+            await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
+
+    @tree.command(name="add_coins", description="Añade GameCoins a un usuario (Owner only)")
+    @app_commands.describe(
+        user="Usuario al que añadir GameCoins",
+        amount="Cantidad de GameCoins a añadir",
+        reason="Razón para añadir las monedas (opcional)"
+    )
+    @app_commands.default_permissions(administrator=True)
+    @is_owner()
+    async def add_coins(interaction: discord.Interaction, user: discord.User, amount: int, reason: Optional[str] = "Añadido por el owner"):
+        """Añade GameCoins a un usuario específico."""
+        try:
+            from economy_system import economy
+            
+            if amount <= 0:
+                await interaction.response.send_message("❌ La cantidad debe ser positiva.", ephemeral=True)
+                return
+            
+            # Obtener balance anterior
+            user_economy = economy.get_user_economy(str(user.id))
+            old_balance = user_economy["coins"]
+            
+            # Añadir las monedas
+            new_balance = economy.add_coins(str(user.id), amount, reason)
+            
+            # Crear embed de confirmación
+            embed = discord.Embed(
+                title="💰 GameCoins Añadidas",
+                description=f"Se han añadido **{amount:,} GameCoins** a {user.mention}",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="👤 Usuario",
+                value=f"**Nombre:** {user.display_name}\n**ID:** {user.id}",
+                inline=True
+            )
+            embed.add_field(
+                name="💰 Balance",
+                value=f"**Anterior:** {old_balance:,} GameCoins\n**Nuevo:** {new_balance:,} GameCoins",
+                inline=True
+            )
+            embed.add_field(
+                name="📝 Razón",
+                value=reason,
+                inline=False
+            )
+            embed.set_footer(text="Sistema Económico • GameMid")
+            embed.timestamp = datetime.utcnow()
+            
+            logger.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) añadió {amount} GameCoins a {user.name} (ID: {user.id}). Razón: {reason}")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logger.error(f"Error en add_coins: {e}")
+            await interaction.response.send_message(f"❌ Error al añadir GameCoins: {str(e)}", ephemeral=True)

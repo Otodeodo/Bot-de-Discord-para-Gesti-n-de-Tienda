@@ -106,27 +106,60 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         logger.info(f"Información de pago eliminada exitosamente para el método {method}")
         await interaction.response.send_message(f"Información de pago para '{method}' eliminada.", ephemeral=True)
 
-    @tree.command(name="help", description="Muestra todos los comandos")
+    @tree.command(name="help", description="📚 Muestra todos los comandos disponibles")
     async def help(interaction: discord.Interaction):
         logger.info(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) solicitó ayuda con los comandos")
-        message = """
-        === Comandos del Bot ===
-        **Usuarios:**
-        /products - Muestra los productos disponibles.
-        /ticket - Abre un ticket para comprar un producto.
-        /ver-tienda - Muestra los regalos disponibles de la tienda de Fortnite.
-        /pago - Muestra la información de pago para los métodos disponibles.
-        @AssistantMid para responder tus dudas.
-        **Owners:**
-        /add-product [name] [price] [description] - Añade un producto.
-        /edit-product [product_id] [name|price|description] - Edita un producto.
-        /delete-product [product_id] - Elimina un producto.
-        /close - Cierra el ticket (en el canal del ticket).
-        /ticket-panel - Crea un panel para abrir tickets.
-        /add-payment-info [method] [info] - Añade o actualiza la información de un método de pago.
-        /remove-payment-info [method] - Elimina la información de un método de pago.
-        /sync - Sincroniza manualmente los comandos del bot (Owner only).
-        **General:**
-        /help - Este mensaje.
-        """
-        await interaction.response.send_message(message, ephemeral=True)
+        
+        # Embed principal con todos los comandos organizados
+        embed = discord.Embed(
+            title="📚 Centro de Ayuda - GameMid",
+            description="**¡Todos los comandos disponibles organizados por categorías!**\n*GameMid v2.0 - 34 comandos activos*",
+            color=0xffd700
+        )
+        
+        # Economía Virtual
+        embed.add_field(
+            name="🪙 **ECONOMÍA VIRTUAL**",
+            value="**💰 Personal:** `/balance` `/daily` `/jobs`\n**⚒️ Trabajo:** `/work` `/apply_job` `/claim_task`\n**🎮 Juegos:** `/games` `/coinflip` `/dice` `/slots` `/blackjack` (interactivo) `/ruleta`\n**🏆 Social:** `/transfer` `/leaderboard`",
+            inline=True
+        )
+        
+        # Tienda y Productos
+        embed.add_field(
+            name="🛒 **TIENDA & PRODUCTOS**",
+            value="**👥 Usuario:** `/products` `/ticket` `/ver-tienda` `/pago`\n**👑 Admin:** `/add-product` `/edit-product` `/delete-product` `/close` `/ticket-panel`\n**💳 Pagos:** `/add-payment-info` `/remove-payment-info`",
+            inline=True
+        )
+        
+        # Inteligencia Artificial
+        embed.add_field(
+            name="🤖 **INTELIGENCIA ARTIFICIAL**",
+            value="**💬 Chat:** Menciona `@GameMid`\n**🖼️ Imágenes:** Reconocimiento GPT-4o\n**⏰ Recordatorios:** Sistema automático\n**🔧 Admin:** `/sync` `/categorias`",
+            inline=True
+        )
+        
+        # Comandos Generales
+        embed.add_field(
+            name="⚙️ **COMANDOS GENERALES**",
+            value="**📚 Ayuda:** `/help`\n**🔍 Info:** Comandos de información\n**🛠️ Utilidades:** Herramientas varias",
+            inline=True
+        )
+        
+        # Características destacadas
+        embed.add_field(
+            name="✨ **CARACTERÍSTICAS DESTACADAS**",
+            value="🪙 **Sistema de GameCoins** completo\n🎮 **Minijuegos** interactivos\n🤖 **IA GPT-4o** integrada\n🎫 **Sistema de tickets** automático\n📊 **Rankings** y estadísticas\n⏰ **Recordatorios** personalizados",
+            inline=True
+        )
+        
+        # Enlaces y documentación
+        embed.add_field(
+            name="📖 **DOCUMENTACIÓN**",
+            value="📋 [Economía Virtual](https://github.com/tu-repo/ECONOMIA_VIRTUAL.md)\n🖼️ [Reconocimiento IA](https://github.com/tu-repo/IMAGE_RECOGNITION.md)\n⏰ [Sistema Recordatorios](https://github.com/tu-repo/REMINDER_SYSTEM.md)",
+            inline=True
+        )
+        
+        embed.set_footer(text="💡 GameMid - Tu asistente completo para Discord | Desarrollado con ❤️")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1234567890/gamemid-logo.png")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)

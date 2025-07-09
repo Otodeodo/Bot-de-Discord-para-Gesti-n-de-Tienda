@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 
 from config import DATA_FILE
@@ -20,7 +21,18 @@ def load_data():
             "Depósito Oxxo": "Número de cuenta: 9876543210 (Referencia: 12345)"
         },
         "gifts": {},
-        "shop": {"last_updated": ""}
+        "shop": {"last_updated": ""},
+        "roblox_accounts": {},
+        "pending_verifications": {},
+        "reminded_users": [],
+        "economy": {
+            "users": {},
+            "global_stats": {
+                "total_coins_in_circulation": 0,
+                "total_games_played": 0,
+                "total_jobs_completed": 0
+            }
+        }
     }
     try:
         with open(DATA_FILE, "r") as f:
@@ -49,6 +61,15 @@ def save_data(data):
     data["ticket_counter"] = TICKET_COUNTER
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
+
+def get_next_ticket_id():
+    """Obtiene el siguiente ID de ticket disponible."""
+    global TICKET_COUNTER
+    TICKET_COUNTER += 1
+    data = load_data()
+    data["ticket_counter"] = TICKET_COUNTER
+    save_data(data)
+    return TICKET_COUNTER
 
 def get_category_by_id(category_id: str):
     """Obtiene una categoría por su ID."""
@@ -125,3 +146,83 @@ def assign_product_to_category(product_id: str, category_id: str):
         
     save_data(data)
     return True
+
+# Funciones para manejar cuentas de Roblox
+def get_roblox_account(discord_user_id: str):
+    """Obtiene la cuenta de Roblox vinculada a un usuario de Discord."""
+    data = load_data()
+    return data.get('roblox_accounts', {}).get(discord_user_id)
+
+def link_roblox_account(discord_user_id: str, roblox_data: dict):
+    """Vincula una cuenta de Roblox a un usuario de Discord."""
+    data = load_data()
+    if 'roblox_accounts' not in data:
+        data['roblox_accounts'] = {}
+    
+    data['roblox_accounts'][discord_user_id] = roblox_data
+    save_data(data)
+    return True
+
+def unlink_roblox_account(discord_user_id: str):
+    """Desvincula una cuenta de Roblox de un usuario de Discord."""
+    data = load_data()
+    if 'roblox_accounts' in data and discord_user_id in data['roblox_accounts']:
+        del data['roblox_accounts'][discord_user_id]
+        save_data(data)
+        return True
+    return False
+
+def get_pending_verification(discord_user_id: str):
+    """Obtiene una verificación pendiente para un usuario."""
+    data = load_data()
+    return data.get('pending_verifications', {}).get(discord_user_id)
+
+def add_pending_verification(discord_user_id: str, verification_data: dict):
+    """Añade una verificación pendiente para un usuario."""
+    data = load_data()
+    if 'pending_verifications' not in data:
+        data['pending_verifications'] = {}
+    
+    data['pending_verifications'][discord_user_id] = verification_data
+    save_data(data)
+    return True
+
+def remove_pending_verification(discord_user_id: str):
+    """Remueve una verificación pendiente para un usuario."""
+    data = load_data()
+    if 'pending_verifications' in data and discord_user_id in data['pending_verifications']:
+        del data['pending_verifications'][discord_user_id]
+        save_data(data)
+        return True
+    return False
+
+def get_all_roblox_accounts():
+    """Obtiene todas las cuentas de Roblox vinculadas."""
+    data = load_data()
+    return data.get('roblox_accounts', {})
+
+def cleanup_expired_verifications():
+    """Limpia las verificaciones expiradas."""
+    data = load_data()
+    if 'pending_verifications' not in data:
+        return 0
+    
+    current_time = datetime.utcnow()
+    expired_keys = []
+    
+    for user_id, verification in data['pending_verifications'].items():
+        try:
+            expires_at = datetime.fromisoformat(verification['expires_at'])
+            if current_time > expires_at:
+                expired_keys.append(user_id)
+        except:
+            # Si hay error al parsear la fecha, considerar como expirado
+            expired_keys.append(user_id)
+    
+    for key in expired_keys:
+        del data['pending_verifications'][key]
+    
+    if expired_keys:
+        save_data(data)
+    
+    return len(expired_keys)
