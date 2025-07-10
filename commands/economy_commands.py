@@ -745,25 +745,27 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         ]
 
     # Event listeners para actualizar progreso de tareas
-    @client.event
-    async def on_message(message):
+
+    async def handle_economy_message(message: discord.Message):
         if message.author.bot:
             return
-        
+
         user_id = str(message.author.id)
         economy.update_task_progress(user_id, "send_messages")
         economy.update_task_progress(user_id, "send_many_messages")
-    
-    @client.event
-    async def on_interaction(interaction):
+
+    async def handle_economy_interaction(interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.application_command:
             user_id = str(interaction.user.id)
             economy.update_task_progress(user_id, "use_commands")
-    
-    @client.event
-    async def on_reaction_add(reaction, user):
+
+    async def handle_economy_reaction(reaction: discord.Reaction, user: discord.User):
         if user.bot:
             return
-        
+
         user_id = str(user.id)
         economy.update_task_progress(user_id, "react_messages")
+
+    client.add_listener(handle_economy_message, "on_message")
+    client.add_listener(handle_economy_interaction, "on_interaction")
+    client.add_listener(handle_economy_reaction, "on_reaction_add")
