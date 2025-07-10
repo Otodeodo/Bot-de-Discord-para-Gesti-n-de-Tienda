@@ -12,6 +12,7 @@ from commands.user_commands import setup as setup_user_commands
 from commands.general_commands import setup as setup_general_commands
 from commands.category_commands import setup as setup_category_commands
 from commands.economy_commands import setup as setup_economy_commands
+from commands.virtual_shop_commands import setup as setup_virtual_shop_commands
 from utils import setup_error_handlers
 from chatgpt_chat import chat_manager
 from reminder_system import initialize_reminder_system
@@ -27,6 +28,7 @@ async def setup():
     setup_general_commands(tree, client)
     setup_category_commands(tree, client)
     setup_economy_commands(tree, client)
+    setup_virtual_shop_commands(tree, client)
     await setup_error_handlers(tree)
 
 # La configuración se ejecutará en la función main
@@ -34,7 +36,7 @@ async def setup():
 @client.event
 async def on_ready():
     print(f"Bot conectado como {client.user}")
-    activity = discord.Activity(type=discord.ActivityType.playing, name="ia")
+    activity = discord.Activity(type=discord.ActivityType.playing, name="Gestionando Tickets y Productos")
     await client.change_presence(activity=activity)
     try:
         synced = await tree.sync()
@@ -55,66 +57,47 @@ last_processed_messages = {}
 
 @client.event
 async def on_message(message):
+    print(f"[DEBUG] Mensaje recibido: {message.content}")
+    
     # Ignorar mensajes del propio bot
     if message.author == client.user:
+        print(f"[DEBUG] Ignorando mensaje del bot")
         return
 
-    # Obtener el ID del usuario y el contenido del mensaje
-    user_id = str(message.author.id)
-    content = message.content.lower()
-
-    # Palabras clave para detectar
- 
-
-    # Verificar si el mensaje contiene palabras clave
-  
-
-    # Si no hay palabras clave, verificar si el bot fue mencionado
+    print(f"[DEBUG] Verificando menciones...")
+    print(f"[DEBUG] Bot ID: {client.user.id}")
+    print(f"[DEBUG] Menciones: {[user.id for user in message.mentions]}")
+    
+    # Verificar si el bot fue mencionado
     if client.user.mentioned_in(message):
+        print(f"[DEBUG] ¡Bot mencionado!")
+        
+        # Limpiar el contenido del mensaje
         content = message.content.replace(f'<@{client.user.id}>', '').strip()
+        print(f"[DEBUG] Contenido limpio: '{content}'")
         
-        # Extraer URLs de imágenes de los attachments
-        image_urls = []
-        if message.attachments:
-            for attachment in message.attachments:
-                # Verificar si es una imagen
-                if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
-                    image_urls.append(attachment.url)
+        # Si no hay contenido, usar mensaje por defecto
+        if not content:
+            content = "Hola"
         
-        # Verificar si es un mensaje vacío y sin imágenes
-        if not content and not image_urls:
-            await message.reply('¡Hola! ¿En qué puedo ayudarte?')
-            return
-        
-        # Si no hay texto pero hay imágenes, usar texto por defecto
-        if not content and image_urls:
-            content = "¿Qué ves en esta imagen?"
-        
-        # Verificar si es un mensaje duplicado
-        message_key = f"{content}_{len(image_urls)}"
-        if user_id in last_processed_messages:
-            last_message, last_time = last_processed_messages[user_id]
-            if message_key == last_message and (message.created_at - last_time).total_seconds() < 5:
-                # Ignorar mensajes duplicados enviados en menos de 5 segundos
-                return
-        
-        # Actualizar el último mensaje procesado
-        last_processed_messages[user_id] = (message_key, message.created_at)
+        try:
+            print(f"[DEBUG] Llamando a chat_manager...")
+            # Obtener respuesta de la IA
+            user_id = str(message.author.id)
+            response = await chat_manager.get_response(user_id, content)
+            print(f"[DEBUG] Respuesta obtenida: {response[:50]}...")
+            
+            # Enviar respuesta
+            await message.reply(response)
+            print(f"[DEBUG] Respuesta enviada")
+        except Exception as e:
+            print(f'[ERROR] Error completo: {e}')
+            import traceback
+            print(f'[ERROR] Traceback: {traceback.format_exc()}')
+            await message.reply('Lo siento, ha ocurrido un error.')
+    else:
+        print(f"[DEBUG] Bot NO fue mencionado")
 
-        # Mostrar indicador de escritura
-        async with message.channel.typing():
-            try:
-                # Obtener respuesta del ChatManager (con soporte para imágenes)
-                response = await chat_manager.get_response(user_id, content, image_urls if image_urls else None)
-                
-                # Enviar la respuesta
-                await message.reply(response)
-            except Exception as e:
-                print(f'Error al procesar mensaje: {str(e)}')
-                await message.reply(
-                    'Lo siento, ha ocurrido un error al procesar tu mensaje. '
-                    'Por favor, inténtalo de nuevo más tarde.'
-                )
 # Verificar que el token no esté vacío
 if not DISCORD_TOKEN:
     print("Error: DISCORD_TOKEN está vacío. Por favor, coloca tu token en la variable DISCORD_TOKEN.")

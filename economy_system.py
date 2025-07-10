@@ -13,8 +13,8 @@ class EconomySystem:
             "send_messages": {"name": "Enviar 10 mensajes", "reward": 50, "target": 10, "type": "counter"},
             "use_commands": {"name": "Usar 5 comandos", "reward": 30, "target": 5, "type": "counter"},
             "react_messages": {"name": "Reaccionar a 15 mensajes", "reward": 40, "target": 15, "type": "counter"},
-            "voice_time": {"name": "Estar 30 min en voz", "reward": 80, "target": 30, "type": "time"},
-            "help_others": {"name": "Ayudar a 3 usuarios", "reward": 100, "target": 3, "type": "counter"}
+            "play_minigames": {"name": "Jugar 5 minijuegos", "reward": 75, "target": 5, "type": "counter"},
+            "send_many_messages": {"name": "Mandar 50 mensajes", "reward": 120, "target": 50, "type": "counter"}
         }
         
         self.jobs = {
@@ -154,6 +154,25 @@ class EconomySystem:
             data = load_data()
             data["economy"]["users"][user_id] = user_economy
             save_data(data)
+        else:
+            # Verificar si hay nuevas tareas que agregar
+            if "daily_tasks" not in user_economy:
+                user_economy["daily_tasks"] = {}
+            
+            updated = False
+            for task_id, task_info in self.daily_tasks.items():
+                if task_id not in user_economy["daily_tasks"]:
+                    user_economy["daily_tasks"][task_id] = {
+                        "progress": 0,
+                        "completed": False,
+                        "claimed": False
+                    }
+                    updated = True
+            
+            if updated:
+                data = load_data()
+                data["economy"]["users"][user_id] = user_economy
+                save_data(data)
         
         return user_economy["daily_tasks"]
 
@@ -283,9 +302,11 @@ class EconomySystem:
             winnings = bet * 2
             self.add_coins(user_id, winnings, "Coinflip win")
             self._update_game_stats(user_id, True)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": True, "winnings": winnings}
         else:
             self._update_game_stats(user_id, False)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": False, "lost": bet}
 
     def play_dice(self, user_id: str, bet: int, guess: int) -> Dict:
@@ -303,9 +324,11 @@ class EconomySystem:
             winnings = bet * 6  # 6x multiplier for exact guess
             self.add_coins(user_id, winnings, "Dice win")
             self._update_game_stats(user_id, True)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": True, "winnings": winnings}
         else:
             self._update_game_stats(user_id, False)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": False, "lost": bet}
 
     def play_slots(self, user_id: str, bet: int) -> Dict:
@@ -336,9 +359,11 @@ class EconomySystem:
             winnings = int(bet * multiplier)
             self.add_coins(user_id, winnings, "Slots win")
             self._update_game_stats(user_id, True)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": True, "winnings": winnings, "multiplier": multiplier}
         else:
             self._update_game_stats(user_id, False)
+            self.update_task_progress(user_id, "play_minigames")
             return {"success": True, "result": result, "won": False, "lost": bet}
 
     def play_blackjack(self, user_id: str, bet: int) -> Dict:
@@ -539,6 +564,9 @@ class EconomySystem:
         user_economy["games_played"] += 1
         if win:
             user_economy["games_won"] += 1
+        
+        # Actualizar progreso de tarea de minijuegos
+        self.update_task_progress(user_id, "play_minigames")
         
         data = load_data()
         data["economy"]["users"][user_id] = user_economy

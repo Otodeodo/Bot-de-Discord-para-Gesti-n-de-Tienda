@@ -14,10 +14,28 @@ import io
 
 class ChatManager:
     def __init__(self):
-        # Inicializar el cliente de OpenAI con la nueva API v1.0.0
-        self.client = AsyncOpenAI(
-            api_key=OPENAI_API_KEY
-        )
+        print(f"[DEBUG] Inicializando ChatManager...")
+        print(f"[DEBUG] API Key presente: {bool(OPENAI_API_KEY)}")
+        print(f"[DEBUG] API Key primeros 10 chars: {OPENAI_API_KEY[:10] if OPENAI_API_KEY else 'None'}")
+        
+        # Verificar que la API key esté configurada
+        if not OPENAI_API_KEY or OPENAI_API_KEY == "your-openai-api-key-here":
+            print("❌ ERROR: OPENAI_API_KEY no está configurada correctamente en config.py")
+            self.client = None
+            return
+            
+        try:
+            # Inicializar el cliente de OpenAI con la nueva API v1.0.0
+            self.client = AsyncOpenAI(
+                api_key=OPENAI_API_KEY
+            )
+            print("✅ ChatManager inicializado correctamente")
+            print(f"[DEBUG] Cliente OpenAI creado: {type(self.client)}")
+        except Exception as e:
+            print(f"❌ Error al inicializar ChatManager: {str(e)}")
+            import traceback
+            print(f"[DEBUG] Traceback completo: {traceback.format_exc()}")
+            self.client = None
         
         # Diccionario para almacenar el historial de conversaciones por usuario
         self.conversations = {}
@@ -398,6 +416,17 @@ Siempre responde en español y mantén el tono característico de Mari."""
                    "Intenta enviarla de nuevo o contacta a un administrador prro :v")
 
     async def get_response(self, user_id: str, message: str, image_urls: Optional[List[str]] = None) -> str:
+        """Obtener respuesta de ChatGPT para un usuario específico"""
+        
+        print(f"[DEBUG] get_response llamado con user_id: {user_id}, message: '{message}'")
+        
+        # Verificar si el cliente está inicializado
+        if self.client is None:
+            print("❌ ChatManager no está inicializado correctamente")
+            return "Lo siento, hay un problema con la configuración de la IA. Por favor, contacta al administrador."
+        
+        print(f"[DEBUG] Cliente OpenAI disponible: {self.client is not None}")
+        
         # Si hay imágenes, procesarlas con Vision API
         if image_urls and len(image_urls) > 0:
             return await self._process_images_with_vision(user_id, message, image_urls)
@@ -476,16 +505,23 @@ Directrices importantes:
 - Si el usuario pregunta por un producto que no está en la lista, responder con "No tenemos ese producto en la lista """}
             ] + self.conversations[user_id]
 
+            print(f"[DEBUG] Preparando llamada a OpenAI API...")
+            print(f"[DEBUG] Número de mensajes: {len(messages)}")
+            print(f"[DEBUG] Último mensaje: {messages[-1] if messages else 'None'}")
+            
             # Realizar la llamada a la API de ChatGPT con la nueva sintaxis
+            print(f"[DEBUG] Llamando a OpenAI API...")
             response = await self.client.chat.completions.create(
                 model="gpt-3.5-turbo",  # Puedes cambiar a gpt-4 si tienes acceso
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.9
             )
+            print(f"[DEBUG] Respuesta recibida de OpenAI")
 
             # Extraer la respuesta
             assistant_message = response.choices[0].message.content
+            print(f"[DEBUG] Mensaje extraído: {assistant_message[:100]}...")
 
             # Añadir la respuesta al historial
             self.conversations[user_id].append({"role": "assistant", "content": assistant_message})
