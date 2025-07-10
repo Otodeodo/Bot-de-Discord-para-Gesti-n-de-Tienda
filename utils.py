@@ -87,20 +87,38 @@ def is_owner():
 async def setup_error_handlers(tree: app_commands.CommandTree):
     @tree.error
     async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.errors.CheckFailure):
-            # Ya manejado por el decorador is_owner()
-            return
-        elif isinstance(error, app_commands.CommandNotFound):
-            await interaction.response.send_message(
-                "El comando no existe. Usa /help para ver los comandos disponibles.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                f"Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo más tarde.",
-                ephemeral=True
-            )
-            print(f"Error en comando {interaction.command}: {str(error)}")
+        """Maneja errores de comandos de aplicación"""
+        try:
+            if isinstance(error, app_commands.MissingPermissions):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "❌ No tienes permisos para usar este comando.",
+                        ephemeral=True
+                    )
+            elif isinstance(error, app_commands.CheckFailure):
+                if "owner" in str(error).lower():
+                    # Ya manejado por el decorador is_owner()
+                    return
+                elif isinstance(error, app_commands.CommandNotFound):
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(
+                            "El comando no existe. Usa /help para ver los comandos disponibles.",
+                            ephemeral=True
+                        )
+                else:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(
+                            f"Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo más tarde.",
+                            ephemeral=True
+                        )
+                    print(f"Error en comando {interaction.command}: {str(error)}")
+        except discord.NotFound:
+            # Interacción expirada, solo registrar el error
+            print(f"Error en comando {getattr(interaction, 'command', 'unknown')}: {str(error)} (interacción expirada)")
+        except Exception as e:
+            # Error adicional al manejar el error original
+            print(f"Error al manejar error de comando: {e}")
+            print(f"Error original: {error}")
 
 def sync_fortnite_shop():
     data = load_data()

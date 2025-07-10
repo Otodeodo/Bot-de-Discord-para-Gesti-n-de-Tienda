@@ -4,6 +4,7 @@ from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
 from economy_system import economy
+from views.virtual_shop_view import VirtualShopView
 from typing import Optional
 import random
 
@@ -12,7 +13,13 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="balance", description="🪙 Muestra tu balance de GameCoins")
     async def balance(interaction: discord.Interaction, usuario: Optional[discord.Member] = None):
         target_user = usuario or interaction.user
-        user_economy = economy.get_user_economy(str(target_user.id))
+        # Forzar recarga de datos frescos
+        from data_manager import load_data
+        data = load_data()
+        if "economy" in data and "users" in data["economy"] and str(target_user.id) in data["economy"]["users"]:
+            user_economy = data["economy"]["users"][str(target_user.id)]
+        else:
+            user_economy = economy.get_user_economy(str(target_user.id))
         
         embed = discord.Embed(
             title=f"💰 Balance de {target_user.display_name}",
@@ -517,33 +524,50 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     async def blackjack(interaction: discord.Interaction, apuesta: int):
         from views.blackjack_view import BlackjackView
         
-        user_id = str(interaction.user.id)
-        
-        # Validar apuesta
-        if not economy._validate_bet("blackjack", apuesta):
-            embed = discord.Embed(
-                title="❌ Apuesta Inválida",
-                description=f"La apuesta debe estar entre {economy.minigames['blackjack']['min_bet']} y {economy.minigames['blackjack']['max_bet']} GameCoins",
-                color=0xff0000
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        
-        # Verificar fondos
-        if not economy.remove_coins(user_id, apuesta, "Blackjack bet"):
-            embed = discord.Embed(
-                title="❌ Fondos Insuficientes",
-                description="No tienes suficientes GameCoins para esta apuesta",
-                color=0xff0000
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        
-        # Crear vista interactiva
-        view = BlackjackView(user_id, apuesta, economy)
-        embed = view.create_embed()
-        
-        await interaction.response.send_message(embed=embed, view=view)
+        try:
+            user_id = str(interaction.user.id)
+            
+            # Validar apuesta
+            if not economy._validate_bet("blackjack", apuesta):
+                embed = discord.Embed(
+                    title="❌ Apuesta Inválida",
+                    description=f"La apuesta debe estar entre {economy.minigames['blackjack']['min_bet']} y {economy.minigames['blackjack']['max_bet']} GameCoins",
+                    color=0xff0000
+                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            
+            # Verificar fondos
+            if not economy.remove_coins(user_id, apuesta, "Blackjack bet"):
+                embed = discord.Embed(
+                    title="❌ Fondos Insuficientes",
+                    description="No tienes suficientes GameCoins para esta apuesta",
+                    color=0xff0000
+                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            
+            # Crear vista interactiva
+            view = BlackjackView(user_id, apuesta, economy)
+            embed = view.create_embed()
+            
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, view=view)
+        except discord.NotFound:
+            # Interacción expirada, no hacer nada
+            print(f"Interacción de blackjack expirada para usuario {interaction.user.id}")
+        except Exception as e:
+            print(f"Error en comando blackjack: {e}")
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "❌ Ha ocurrido un error. Inténtalo de nuevo.",
+                        ephemeral=True
+                    )
+                except:
+                    pass
     
     @tree.command(name="transfer", description="💸 Transfiere GameCoins a otro usuario")
     async def transfer(interaction: discord.Interaction, 
@@ -656,26 +680,60 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     async def ruleta(interaction: discord.Interaction):
         from views.roulette_view import RouletteView
         
-        user_id = str(interaction.user.id)
-        
-        # Verificar que el usuario tenga al menos la apuesta mínima
-        user_economy = economy.get_user_economy(user_id)
-        min_bet = economy.minigames['roulette']['min_bet']
-        
-        if user_economy['coins'] < min_bet:
-            await interaction.response.send_message(
-                f"❌ Necesitas al menos {min_bet:,} GameCoins para jugar a la ruleta.",
-                ephemeral=True
-            )
-            return
-        
-        # Crear la vista interactiva
-        view = RouletteView(user_id, economy)
-        embed = view.create_embed()
-        
-        await interaction.response.send_message(embed=embed, view=view)
+        try:
+            user_id = str(interaction.user.id)
+            
+            # Verificar que el usuario tenga al menos la apuesta mínima
+            user_economy = economy.get_user_economy(user_id)
+            min_bet = economy.minigames['roulette']['min_bet']
+            
+            if user_economy['coins'] < min_bet:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        f"❌ Necesitas al menos {min_bet:,} GameCoins para jugar a la ruleta.",
+                        ephemeral=True
+                    )
+                return
+            
+            # Crear la vista interactiva
+            view = RouletteView(user_id, economy)
+            embed = view.create_embed()
+            
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, view=view)
+        except discord.NotFound:
+            # Interacción expirada, no hacer nada
+            print(f"Interacción de ruleta expirada para usuario {interaction.user.id}")
+        except Exception as e:
+            print(f"Error en comando ruleta: {e}")
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "❌ Ha ocurrido un error. Inténtalo de nuevo.",
+                        ephemeral=True
+                    )
+                except:
+                    pass
     
-
+    @tree.command(name="tienda", description="🛒 Abre la tienda virtual de GameCoins")
+    async def tienda_virtual(interaction: discord.Interaction):
+        """Comando para abrir la tienda virtual de GameCoins"""
+        try:
+            await interaction.response.defer()
+            
+            view = VirtualShopView(str(interaction.user.id))
+            embed = view.create_embed()
+            
+            await interaction.followup.send(embed=embed, view=view)
+            
+            print(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) abrió la tienda virtual")
+            
+        except Exception as e:
+            print(f"Error en comando tienda: {str(e)}")
+            if not interaction.response.is_done():
+                await interaction.followup.send("❌ Error al abrir la tienda virtual. Intenta de nuevo.", ephemeral=True)
+            else:
+                await interaction.edit_original_response(content="❌ Error al abrir la tienda virtual. Intenta de nuevo.")
     
     @leaderboard.autocomplete('categoria')
     async def leaderboard_autocomplete(interaction: discord.Interaction, current: str):
@@ -694,6 +752,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         
         user_id = str(message.author.id)
         economy.update_task_progress(user_id, "send_messages")
+        economy.update_task_progress(user_id, "send_many_messages")
     
     @client.event
     async def on_interaction(interaction):

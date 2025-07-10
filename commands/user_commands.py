@@ -37,15 +37,30 @@ def calculate_days_since_creation(created_date: str):
         return 0
 
 def setup(tree: app_commands.CommandTree, client: discord.Client):
-    @tree.command(name="products", description="Muestra los productos disponibles")
+    @tree.command(name="products", description="Ver todos los productos disponibles")
     async def products(interaction: discord.Interaction):
-        data = load_data()
-        products = list(data["products"].items())
-        items_per_page = 24
-        pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)] if products else [[]]
-        
-        view = EnhancedProductView(products, pages)
-        await interaction.response.send_message(embed=view.create_embed(), view=view, ephemeral=True)
+        try:
+            data = load_data()
+            products = list(data["products"].items())
+            items_per_page = 24
+            pages = [products[i:i + items_per_page] for i in range(0, len(products), items_per_page)] if products else [[]]
+            
+            view = EnhancedProductView(products, pages)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=view.create_embed(), view=view, ephemeral=True)
+        except discord.NotFound:
+            # Interacción expirada, no hacer nada
+            print(f"Interacción de products expirada para usuario {interaction.user.id}")
+        except Exception as e:
+            print(f"Error en comando products: {e}")
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "❌ Ha ocurrido un error. Inténtalo de nuevo.",
+                        ephemeral=True
+                    )
+                except:
+                    pass
 
     @tree.command(name="ticket", description="Abre un ticket para comprar un producto")
     async def ticket(interaction: discord.Interaction):
