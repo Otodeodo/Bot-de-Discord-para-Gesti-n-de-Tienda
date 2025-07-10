@@ -49,10 +49,17 @@ class VirtualShop:
         # Añadir campos específicos según el tipo de producto
         if role_id:
             product_data["role_id"] = role_id
+            product_data["category"] = "roles"
         if duration_days:
             product_data["duration_days"] = duration_days
         if multiplier:
             product_data["multiplier"] = multiplier
+            if not product_data.get("category"):
+                product_data["category"] = "multipliers"
+        
+        # Si no se ha asignado categoría, usar "other"
+        if "category" not in product_data:
+            product_data["category"] = "other"
         
         data["virtual_shop"]["products"][product_id] = product_data
         save_data(data)
@@ -111,7 +118,17 @@ class VirtualShop:
             }
         
         # Verificar si ya tiene el producto (para roles permanentes)
-        if product["category"] == "roles" and not product.get("duration_days"):
+        # Determinar categoría basada en los campos del producto
+        product_category = product.get("category")
+        if not product_category:
+            if product.get("role_id"):
+                product_category = "roles"
+            elif product.get("multiplier"):
+                product_category = "multipliers"
+            else:
+                product_category = "other"
+        
+        if product_category == "roles" and not product.get("duration_days"):
             user_purchases = self.get_user_purchases(user_id)
             for purchase in user_purchases:
                 if purchase["product_id"] == product_id and purchase.get("active", True):
@@ -146,11 +163,15 @@ class VirtualShop:
             
             save_data(data)
             
+            # Obtener balance actualizado directamente de datos frescos
+            fresh_data = load_data()
+            new_balance = fresh_data["economy"]["users"][user_id]["coins"]
+            
             return {
                 "success": True,
                 "purchase_id": purchase_id,
                 "product": product,
-                "new_balance": economy.get_user_economy(user_id)["coins"]
+                "new_balance": new_balance
             }
         
         return {"success": False, "error": "Error al procesar el pago"}

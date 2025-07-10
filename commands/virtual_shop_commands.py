@@ -16,22 +16,7 @@ def is_owner(interaction: discord.Interaction) -> bool:
 
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     
-    @tree.command(name="tienda_virtual", description="Abre la tienda virtual de GameCoins")
-    async def virtual_shop_command(interaction: discord.Interaction):
-        """Comando para abrir la tienda virtual"""
-        try:
-            await interaction.response.defer()
-            
-            view = VirtualShopView(str(interaction.user.id))
-            embed = view.create_embed()
-            
-            await interaction.followup.send(embed=embed, view=view)
-            
-            logger.info(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) abrió la tienda virtual")
-            
-        except Exception as e:
-            logger.error(f"Error en comando tienda_virtual: {str(e)}")
-            await interaction.followup.send("❌ Error al abrir la tienda virtual. Intenta de nuevo.", ephemeral=True)
+
     
     @tree.command(name="añadir_producto_virtual", description="[OWNER] Añade un producto virtual a la tienda")
     @app_commands.describe(

@@ -58,6 +58,7 @@ class EconomySystem:
 
     def get_user_economy(self, user_id: str) -> Dict:
         """Obtiene los datos económicos de un usuario"""
+        # Siempre cargar datos frescos
         data = load_data()
         if "economy" not in data:
             data["economy"] = {
@@ -92,7 +93,9 @@ class EconomySystem:
             }
             save_data(data)
         
-        return data["economy"]["users"][user_id]
+        # Devolver una copia fresca de los datos
+        fresh_data = load_data()
+        return fresh_data["economy"]["users"][user_id]
 
     def add_coins(self, user_id: str, amount: int, reason: str = "Unknown") -> int:
         """Añade GameCoins a un usuario"""
@@ -121,14 +124,45 @@ class EconomySystem:
 
     def remove_coins(self, user_id: str, amount: int, reason: str = "Unknown") -> bool:
         """Remueve GameCoins de un usuario"""
-        user_economy = self.get_user_economy(user_id)
+        # Cargar datos frescos para evitar condiciones de carrera
+        data = load_data()
+        
+        # Asegurar que la estructura existe
+        if "economy" not in data:
+            data["economy"] = {"users": {}}
+        if "users" not in data["economy"]:
+            data["economy"]["users"] = {}
+        
+        # Obtener datos del usuario directamente de data
+        if user_id not in data["economy"]["users"]:
+            # Crear usuario si no existe
+            data["economy"]["users"][user_id] = {
+                "coins": 100,
+                "level": 1,
+                "xp": 0,
+                "daily_tasks": {},
+                "last_daily": None,
+                "job": None,
+                "last_work": None,
+                "total_earned": 100,
+                "total_spent": 0,
+                "games_played": 0,
+                "games_won": 0,
+                "streak": 0,
+                "achievements": [],
+                "created_at": datetime.now().isoformat()
+            }
+        
+        user_economy = data["economy"]["users"][user_id]
+        
         if user_economy["coins"] >= amount:
-            data = load_data()
             user_economy["coins"] -= amount
             user_economy["total_spent"] += amount
-            data["economy"]["users"][user_id] = user_economy
+            
+            # Guardar inmediatamente y forzar escritura
             save_data(data)
             return True
+        
         return False
 
     def _calculate_level(self, xp: int) -> int:

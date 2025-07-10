@@ -13,7 +13,13 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
     @tree.command(name="balance", description="🪙 Muestra tu balance de GameCoins")
     async def balance(interaction: discord.Interaction, usuario: Optional[discord.Member] = None):
         target_user = usuario or interaction.user
-        user_economy = economy.get_user_economy(str(target_user.id))
+        # Forzar recarga de datos frescos
+        from data_manager import load_data
+        data = load_data()
+        if "economy" in data and "users" in data["economy"] and str(target_user.id) in data["economy"]["users"]:
+            user_economy = data["economy"]["users"][str(target_user.id)]
+        else:
+            user_economy = economy.get_user_economy(str(target_user.id))
         
         embed = discord.Embed(
             title=f"💰 Balance de {target_user.display_name}",
