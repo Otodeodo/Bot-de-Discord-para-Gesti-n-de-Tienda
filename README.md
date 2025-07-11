@@ -4,7 +4,7 @@
 
 [![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+
 
 </div>
 
@@ -14,23 +14,14 @@ GameMid Bot es un asistente virtual de Discord especializado en gaming, diseñad
 
 ## ✨ Características Principales
 
-### 🤖 Sistema de Niveles y Experiencia
-- Sistema de niveles dinámico
-- Gana experiencia al interactuar
-- Desbloquea logros especiales
-- Recompensas por subir de nivel
-
-### 💬 Interacción Natural
-- Respuestas personalizadas y contextuales
-- Lenguaje amigable y divertido
-- Emojis para una mejor experiencia visual
-- Adaptación según la hora del día
-
-### 🛍️ Sistema de Tienda
-- Catálogo de productos gaming
-- Información detallada de precios
-- Sistema de tickets para compras
-- Recomendaciones personalizadas
+- 🎫 **Sistema de Tickets** avanzado con categorías personalizables
+- 💰 **Economía Virtual** con GameCoins, trabajos y minijuegos
+- 🛒 **Tienda Virtual** para comprar productos con GameCoins
+- 🎮 **Minijuegos** interactivos (Blackjack, Ruleta, Dados, etc.)
+- 🏆 **Sistema de Ranking** y leaderboards
+- ⏰ **Recordatorios** personalizados para Robux y eventos
+- 🛡️ **Moderación** con logs y controles avanzados
+- 🎁 **Tienda de Fortnite** integrada con la API oficial
 
 ### 🏆 Logros Desbloqueables
 - Gamer Iniciado (Nivel 5)
@@ -44,7 +35,7 @@ GameMid Bot es un asistente virtual de Discord especializado en gaming, diseñad
 - Palabras clave para diferentes interacciones
 - Sistema de ayuda integrado
 
-### Comandos de Tienda
+
 - Consulta de productos
 - Creación de tickets
 - Información de precios
@@ -53,7 +44,7 @@ GameMid Bot es un asistente virtual de Discord especializado en gaming, diseñad
 
 - Python 3.x
 - Discord.py
-- OpenAI API (GPT-3.5 Turbo)
+
 - Sistema de persistencia de datos
 
 ## 🔧 Configuración
@@ -65,22 +56,19 @@ pip install -r requirements.txt
 ```
 3. Configura las variables de entorno:
    - `DISCORD_TOKEN`
-   - `OPENAI_API_KEY`
+   
 
 4. Inicia el bot:
 ```bash
 python main.py
 ```
 
-## 🤝 Contribuir
 
-¡Las contribuciones son bienvenidas! Si tienes alguna idea para mejorar el bot:
+## 📚 Documentación Adicional
 
-1. Haz fork del repositorio
-2. Crea una nueva rama
-3. Realiza tus cambios
-4. Envía un pull request
-
+- [Sistema de Economía Virtual](ECONOMIA_VIRTUAL.md) - Guía completa del sistema de GameCoins
+- [Tienda Virtual](TIENDA_VIRTUAL.md) - Guía de la tienda virtual de GameCoins
+- [Sistema de Recordatorios](REMINDER_SYSTEM.md) - Configuración y uso de recordatorios
 
 ## 👨‍💻 Creador
 

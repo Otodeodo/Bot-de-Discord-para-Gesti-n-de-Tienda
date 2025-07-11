@@ -46,7 +46,7 @@ Los trabajos proporcionan ingresos regulares con diferentes requisitos:
 | Trabajo | Nivel Req. | Costo | Salario | Cooldown |
 |---------|------------|-------|---------|----------|
 | 🍕 Repartidor de Pizza | 1 | 0 | 50 | 2h |
-| 🛒 Cajero de Tienda | 3 | 100 | 75 | 3h |
+
 | 👨‍💻 Programador Junior | 5 | 500 | 120 | 4h |
 | 🏢 Gerente de Oficina | 10 | 1000 | 200 | 6h |
 | 💎 CEO de Empresa | 20 | 5000 | 500 | 12h |
@@ -159,7 +159,7 @@ Los usuarios pueden transferir GameCoins entre sí:
 
 ## 🚀 Futuras Expansiones
 
-- 🏪 **Tienda Virtual**: Comprar roles, beneficios y items especiales
+
 - 🏆 **Torneos**: Competencias programadas con grandes premios
 - 🎁 **Eventos Especiales**: Bonificaciones temporales y eventos únicos
 - 📈 **Inversiones**: Sistema de acciones y mercado virtual

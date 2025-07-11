@@ -1,238 +1,165 @@
-# 🛒 Tienda Virtual GameCoins
+# 🛒 Tienda Virtual de GameCoins
 
-## Descripción
-La Tienda Virtual es un sistema completo que permite a los usuarios comprar productos virtuales usando GameCoins (la moneda del servidor). Los owners pueden gestionar productos y los usuarios pueden navegar, comprar y gestionar su inventario.
+La tienda virtual permite a los usuarios comprar productos digitales usando sus GameCoins ganados en el servidor.
 
-## 🎯 Características Principales
+## 📋 Características
 
 ### Para Usuarios
 - **Navegación por categorías**: Explora productos organizados por tipo
-- **Compra con GameCoins**: Usa la moneda del servidor para comprar
-- **Inventario personal**: Ve todos tus productos comprados
-- **Productos temporales**: Algunos productos tienen duración limitada
-- **Confirmación de compra**: Sistema seguro de confirmación
+- **Compras seguras**: Sistema de verificación de fondos
+- **Historial de compras**: Revisa todas tus compras anteriores
+- **Productos temporales**: Algunos productos pueden tener duración limitada
+- **Roles automáticos**: Recibe roles al comprar productos específicos
 
-### Para Owners
+### Para Administradores
 - **Gestión completa**: Añadir, editar y eliminar productos
-- **Categorización**: Organizar productos en categorías específicas
+- **Categorización**: Organizar productos en categorías
 - **Estadísticas**: Ver métricas de ventas y productos
-- **Productos flexibles**: Roles, beneficios, cosméticos y potenciadores
+- **Control de disponibilidad**: Habilitar/deshabilitar productos
+- **Precios flexibles**: Establecer cualquier precio en GameCoins
 
-## 📂 Categorías de Productos
+## 🎯 Categorías Disponibles
 
-### 🎭 Roles Especiales
-- Roles únicos para destacar en el servidor
-- Pueden ser permanentes o temporales
-- Acceso a canales y funciones exclusivas
+- 🎭 **Roles**: Roles especiales del servidor
+- ⭐ **Beneficios**: Ventajas y privilegios
+- 🎁 **Items**: Objetos virtuales
+- ✨ **Cosméticos**: Elementos decorativos
+- 📦 **Otros**: Productos diversos
 
-### ⭐ Beneficios
-- Ventajas especiales en el servidor
-- Multiplicadores de XP y GameCoins
-- Acceso a funciones premium
+## 👥 Comandos para Usuarios
 
-### ✨ Cosméticos
-- Items decorativos y personalizaciones
-- Colores de nombre personalizados
-- Insignias y efectos especiales
-
-### 🚀 Potenciadores
-- Multiplicadores y bonificaciones temporales
-- Boost de ganancias por tiempo limitado
-- Mejoras en probabilidades de juegos
-
-## 🎮 Comandos para Usuarios
-
-### `/tienda`
-Abre la tienda virtual principal donde puedes:
-- Ver todas las categorías disponibles
-- Navegar por productos
+### `/tienda_virtual`
+Abre la tienda virtual interactiva donde puedes:
+- Navegar por categorías
+- Ver productos disponibles
 - Realizar compras
-- Acceder a tu inventario
+- Ver precios y descripciones
 
-**Uso:**
-```
-/tienda
-```
+### `/mis_compras`
+Muestra tu historial de compras con:
+- Lista de productos comprados
+- Fechas de compra
+- Precios pagados
+- Estado de los productos
 
-## 👑 Comandos para Owners
+## 👑 Comandos para Administradores
 
 ### `/añadir_producto_virtual`
-Añade un nuevo producto a la tienda virtual.
-
-**Parámetros:**
-- `nombre`: Nombre del producto
-- `precio`: Precio en GameCoins
-- `descripcion`: Descripción del producto
-- `categoria`: Categoría (roles, perks, cosmetics, boosters)
-- `rol_id`: ID del rol (opcional, para productos de rol)
-- `duracion_dias`: Duración en días (opcional, para productos temporales)
-- `multiplicador`: Multiplicador (opcional, para boosters)
-
-**Ejemplo:**
-```
-/añadir_producto_virtual nombre:"VIP Dorado" precio:5000 descripcion:"Rol VIP exclusivo" categoria:roles rol_id:123456789
-```
+Añade un nuevo producto a la tienda:
+- **nombre**: Nombre del producto
+- **precio**: Precio en GameCoins
+- **descripcion**: Descripción del producto
+- **categoria**: Categoría del producto
+- **imagen_url**: URL de imagen (opcional)
+- **rol_id**: ID del rol a otorgar (opcional)
+- **duracion_dias**: Duración en días (opcional)
 
 ### `/editar_producto_virtual`
-Edita un producto existente.
-
-**Parámetros:**
-- `product_id`: ID del producto a editar
-- `nombre`: Nuevo nombre (opcional)
-- `precio`: Nuevo precio (opcional)
-- `descripcion`: Nueva descripción (opcional)
-- `habilitado`: Habilitar/deshabilitar (opcional)
+Edita un producto existente:
+- **product_id**: ID del producto a editar
+- **nombre**: Nuevo nombre (opcional)
+- **precio**: Nuevo precio (opcional)
+- **descripcion**: Nueva descripción (opcional)
+- **habilitado**: Habilitar/deshabilitar (opcional)
 
 ### `/eliminar_producto_virtual`
-Elimina un producto de la tienda.
-
-**Parámetros:**
-- `product_id`: ID del producto a eliminar
+Elimina un producto de la tienda:
+- **product_id**: ID del producto a eliminar
 
 ### `/listar_productos_virtuales`
-Muestra todos los productos con estadísticas.
+Muestra todos los productos con detalles:
+- Estado (habilitado/deshabilitado)
+- Precios y categorías
+- Número de compras
+- IDs de productos
 
-## 🔧 Configuración Inicial
+### `/gestionar_tienda_virtual`
+Panel de gestión con estadísticas:
+- Total de productos y ventas
+- Ingresos generados
+- Productos por categoría
+- Comandos disponibles
 
-### 1. Ejecutar el Script de Configuración
-```bash
-python setup_virtual_shop.py
-```
+## 💡 Consejos de Uso
 
-Este script añade productos de ejemplo en todas las categorías.
+### Para Usuarios
+1. **Gana GameCoins** primero usando `/daily`, `/work`, y minijuegos
+2. **Explora categorías** para encontrar productos de tu interés
+3. **Revisa descripciones** antes de comprar
+4. **Verifica tu saldo** en la tienda antes de comprar
 
-### 2. Configurar Roles (Opcional)
-Para productos de roles, necesitas:
-1. Crear los roles en Discord
-2. Obtener sus IDs
-3. Editar los productos para añadir los `rol_id` correctos
+### Para Administradores
+1. **Organiza productos** en categorías apropiadas
+2. **Establece precios justos** basados en la economía del servidor
+3. **Usa descripciones claras** para explicar qué incluye cada producto
+4. **Monitorea estadísticas** regularmente
+5. **Actualiza productos** según las necesidades del servidor
 
-### 3. Personalizar Productos
-Puedes editar o eliminar los productos de ejemplo y crear los tuyos propios.
+## 🔧 Funcionalidades Técnicas
 
-## 💡 Ejemplos de Productos
+### Sistema de Compras
+- Verificación automática de fondos
+- Descuento automático de GameCoins
+- Registro de todas las transacciones
+- Otorgamiento automático de roles
 
-### Rol VIP
-```
-Nombre: 🌟 VIP Dorado
-Precio: 5000 GameCoins
-Categoría: roles
-Descripción: Rol VIP exclusivo con beneficios especiales
-Rol ID: [ID del rol en Discord]
-```
+### Gestión de Productos
+- IDs únicos para cada producto
+- Control de disponibilidad
+- Contador de compras
+- Soporte para productos temporales
 
-### Boost Temporal
-```
-Nombre: 🚀 Boost de XP (7 días)
-Precio: 1500 GameCoins
-Categoría: perks
-Descripción: Duplica la ganancia de XP por 7 días
-Duración: 7 días
-Multiplicador: 2.0
-```
-
-### Cosmético
-```
-Nombre: 🎨 Color de Nombre Personalizado
-Precio: 2500 GameCoins
-Categoría: cosmetics
-Descripción: Cambia el color de tu nombre (permanente)
-```
-
-## 🛡️ Sistema de Seguridad
-
-### Verificaciones de Compra
-- **Balance suficiente**: Verifica que el usuario tenga GameCoins
-- **Producto disponible**: Solo productos habilitados son comprables
-- **Duplicados**: Previene comprar roles que ya se poseen
-- **Confirmación**: Requiere escribir "COMPRAR" para confirmar
-
-### Gestión de Permisos
+### Seguridad
 - Solo owners pueden gestionar productos
-- Usuarios solo pueden comprar y ver su inventario
-- Verificación de roles automática
+- Validación de datos en todas las operaciones
+- Manejo de errores robusto
+- Logs de todas las transacciones
 
-## 📊 Estadísticas y Métricas
+## 📊 Estadísticas Disponibles
 
-La tienda virtual rastrea:
-- **Total de productos**: Cantidad de productos creados
-- **Productos activos**: Productos disponibles para compra
-- **Compras realizadas**: Número total de transacciones
-- **Ingresos totales**: GameCoins generados por ventas
-- **Compras por producto**: Popularidad de cada item
+- **Total de productos**: Activos y deshabilitados
+- **Total de compras**: Número de transacciones
+- **Ingresos totales**: GameCoins generados
+- **Productos por categoría**: Distribución
+- **Historial individual**: Por usuario
 
-## 🔄 Gestión de Inventario
+## 🚀 Ejemplos de Uso
 
-### Productos Permanentes
-- Se mantienen en el inventario indefinidamente
-- Ideales para roles y cosméticos
+### Añadir un Rol VIP
+```
+/añadir_producto_virtual
+nombre: VIP Premium
+precio: 5000
+descripcion: Acceso VIP con beneficios exclusivos
+categoria: roles
+rol_id: 123456789012345678
+```
 
-### Productos Temporales
-- Expiran automáticamente después del tiempo especificado
-- Perfectos para boosts y beneficios temporales
-- El sistema verifica automáticamente las expiraciones
+### Añadir un Beneficio Temporal
+```
+/añadir_producto_virtual
+nombre: Boost de XP
+precio: 1000
+descripcion: Doble XP por una semana
+categoria: perks
+duracion_dias: 7
+```
 
-## 🎨 Interfaz de Usuario
+### Editar Precio de Producto
+```
+/editar_producto_virtual
+product_id: abc123
+precio: 3000
+```
 
-### Navegación
-- **Botones de categoría**: Filtra productos por tipo
-- **Paginación**: Navega entre páginas de productos
-- **Selección de productos**: Dropdown para elegir qué comprar
-- **Inventario**: Botón para ver productos comprados
+## 🎮 Integración con Economía
 
-### Embeds Informativos
-- **Balance actual**: Muestra GameCoins disponibles
-- **Información del producto**: Precio, descripción, beneficios
-- **Confirmación de compra**: Detalles de la transacción
-- **Estado del inventario**: Productos activos y expirados
-
-## 🚀 Integración con Economía
-
-La tienda virtual está completamente integrada con el sistema de economía:
-- **Transacciones automáticas**: Descuenta GameCoins automáticamente
-- **Historial de gastos**: Rastrea el total gastado por usuario
-- **Estadísticas de usuario**: Actualiza métricas económicas
-- **Validación de balance**: Verifica fondos antes de comprar
-
-## 🔧 Mantenimiento
-
-### Limpieza Automática
-- Los productos expirados se marcan automáticamente
-- El sistema verifica expiraciones al acceder al inventario
-- No se requiere mantenimiento manual
-
-### Respaldos
-- Todos los datos se guardan en `data.json`
-- Las compras se registran con timestamps
-- Historial completo de transacciones
-
-## 📝 Notas Importantes
-
-1. **IDs de Roles**: Para productos de roles, asegúrate de usar IDs válidos de Discord
-2. **Precios Balanceados**: Considera la economía del servidor al fijar precios
-3. **Productos Temporales**: Comunica claramente la duración a los usuarios
-4. **Categorización**: Mantén los productos organizados en las categorías correctas
-5. **Descripciones Claras**: Explica exactamente qué incluye cada producto
-
-## 🆘 Solución de Problemas
-
-### Error: "Producto no encontrado"
-- Verifica que el ID del producto sea correcto
-- Asegúrate de que el producto no haya sido eliminado
-
-### Error: "GameCoins insuficientes"
-- El usuario necesita más GameCoins
-- Puede ganar más jugando minijuegos o completando tareas
-
-### Error: "Ya posees este producto"
-- Para roles permanentes, no se puede comprar duplicados
-- Verifica en el inventario si ya lo tienes
-
-### Productos no aparecen
-- Verifica que estén habilitados (`enabled: true`)
-- Revisa la categoría correcta
-- Asegúrate de que el bot tenga permisos
+La tienda virtual está completamente integrada con el sistema de GameCoins:
+- Los GameCoins se descuentan automáticamente
+- Las compras se registran en el historial
+- Compatible con todos los métodos de ganar GameCoins
+- Estadísticas incluidas en el sistema económico
 
 ---
 
-¡La Tienda Virtual GameCoins está lista para mejorar la experiencia de tu servidor Discord! 🎉
+*La tienda virtual es una extensión del sistema de economía de GameCoins, diseñada para crear una experiencia de compra inmersiva y segura para todos los usuarios del servidor.*

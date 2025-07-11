@@ -1,17 +1,19 @@
-import discord
-from discord import app_commands
-from typing import Dict, List, Optional, Tuple
-from data_manager import load_data, save_data
-from economy_system import economy
+import json
 import uuid
 from datetime import datetime
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Dict, List, Optional, Any
+from data_manager import load_data, save_data
+from economy_system import economy
 
 class VirtualShop:
     def __init__(self):
-        pass
+        self.categories = {
+            "roles": {"name": "Roles", "emoji": "🎭"},
+            "perks": {"name": "Beneficios", "emoji": "⭐"},
+            "items": {"name": "Items", "emoji": "🎁"},
+            "cosmetics": {"name": "Cosméticos", "emoji": "✨"},
+            "other": {"name": "Otros", "emoji": "📦"}
+        }
     
     def get_virtual_products(self) -> Dict:
         """Obtiene todos los productos virtuales"""
@@ -20,54 +22,60 @@ class VirtualShop:
             data["virtual_shop"] = {
                 "products": {},
                 "purchases": {},
-                "settings": {
-                    "enabled": True,
-                    "tax_rate": 0.0
-                }
+                "settings": {"enabled": True, "tax_rate": 0.0}
             }
             save_data(data)
-        return data["virtual_shop"]["products"]
+        
+        products = data["virtual_shop"]["products"]
+        
+        # Verificar si products es una lista, convertir a diccionario
+        if isinstance(products, list):
+            products_dict = {str(i): product for i, product in enumerate(products)}
+            data["virtual_shop"]["products"] = products_dict
+            save_data(data)
+            return products_dict
+        elif not isinstance(products, dict):
+            # Si no es ni lista ni diccionario, inicializar como diccionario vacío
+            data["virtual_shop"]["products"] = {}
+            save_data(data)
+            return {}
+        
+        return products
     
     def add_virtual_product(self, name: str, price: int, description: str, 
-                          role_id: Optional[str] = None, duration_days: Optional[int] = None,
-                          multiplier: Optional[float] = None) -> str:
+                           category: str = "other", image_url: str = None,
+                           role_id: str = None, duration_days: int = None) -> str:
         """Añade un producto virtual a la tienda"""
         data = load_data()
+        
         if "virtual_shop" not in data:
             data["virtual_shop"] = {"products": {}, "purchases": {}, "settings": {"enabled": True, "tax_rate": 0.0}}
         
         product_id = str(uuid.uuid4())
+        
         product_data = {
+            "id": product_id,
             "name": name,
             "price": price,
             "description": description,
-            "created_at": datetime.now().isoformat(),
+            "category": category,
+            "image_url": image_url,
+            "role_id": role_id,
+            "duration_days": duration_days,
+            "created_at": datetime.utcnow().isoformat(),
             "enabled": True,
             "purchases_count": 0
         }
         
-        # Añadir campos específicos según el tipo de producto
-        if role_id:
-            product_data["role_id"] = role_id
-            product_data["category"] = "roles"
-        if duration_days:
-            product_data["duration_days"] = duration_days
-        if multiplier:
-            product_data["multiplier"] = multiplier
-            if not product_data.get("category"):
-                product_data["category"] = "multipliers"
-        
-        # Si no se ha asignado categoría, usar "other"
-        if "category" not in product_data:
-            product_data["category"] = "other"
-        
         data["virtual_shop"]["products"][product_id] = product_data
         save_data(data)
+        
         return product_id
     
     def remove_virtual_product(self, product_id: str) -> bool:
         """Elimina un producto virtual"""
         data = load_data()
+        
         if "virtual_shop" in data and product_id in data["virtual_shop"]["products"]:
             del data["virtual_shop"]["products"][product_id]
             save_data(data)
@@ -77,83 +85,61 @@ class VirtualShop:
     def edit_virtual_product(self, product_id: str, **kwargs) -> bool:
         """Edita un producto virtual"""
         data = load_data()
+        
         if "virtual_shop" in data and product_id in data["virtual_shop"]["products"]:
             product = data["virtual_shop"]["products"][product_id]
             
             # Actualizar campos permitidos
-            allowed_fields = ["name", "price", "description", "enabled", 
-                            "role_id", "duration_days", "multiplier"]
+            allowed_fields = ['name', 'price', 'description', 'category', 'image_url', 
+                            'role_id', 'duration_days', 'enabled']
             
             for field, value in kwargs.items():
                 if field in allowed_fields and value is not None:
                     product[field] = value
             
-            product["updated_at"] = datetime.now().isoformat()
             save_data(data)
             return True
         return False
     
-    def purchase_virtual_product(self, user_id: str, product_id: str) -> Dict:
-        """Compra un producto virtual"""
+    def purchase_virtual_product(self, user_id: str, product_id: str) -> Dict[str, Any]:
+        """Procesa la compra de un producto virtual"""
         data = load_data()
         
         # Verificar que el producto existe
         if "virtual_shop" not in data or product_id not in data["virtual_shop"]["products"]:
-            return {"success": False, "error": "Producto no encontrado"}
+            return {"success": False, "message": "Producto no encontrado"}
         
         product = data["virtual_shop"]["products"][product_id]
         
         # Verificar que el producto está habilitado
         if not product.get("enabled", True):
-            return {"success": False, "error": "Producto no disponible"}
+            return {"success": False, "message": "Producto no disponible"}
         
-        # Verificar que el usuario tiene suficientes GameCoins
-        user_economy = economy.get_user_economy(user_id)
-        price = product["price"]
-        
-        if user_economy["coins"] < price:
+        # Verificar balance del usuario
+        user_balance = economy.get_balance(user_id)
+        if user_balance < product["price"]:
             return {
                 "success": False, 
-                "error": f"GameCoins insuficientes. Necesitas {price} GameCoins, tienes {user_economy['coins']}"
+                "message": f"Saldo insuficiente. Necesitas {product['price']:,} GameCoins, tienes {user_balance:,}"
             }
         
-        # Verificar si ya tiene el producto (para roles permanentes)
-        # Determinar categoría basada en los campos del producto
-        product_category = product.get("category")
-        if not product_category:
-            if product.get("role_id"):
-                product_category = "roles"
-            elif product.get("multiplier"):
-                product_category = "multipliers"
-            else:
-                product_category = "other"
-        
-        if product_category == "roles" and not product.get("duration_days"):
-            user_purchases = self.get_user_purchases(user_id)
-            for purchase in user_purchases:
-                if purchase["product_id"] == product_id and purchase.get("active", True):
-                    return {"success": False, "error": "Ya posees este producto"}
-        
-        # Realizar la compra
-        if economy.remove_coins(user_id, price, f"Compra: {product['name']}"):
+        # Procesar la compra
+        try:
+            # Deducir GameCoins
+            economy.remove_coins(user_id, product["price"])
+            
             # Registrar la compra
             purchase_id = str(uuid.uuid4())
             purchase_data = {
+                "id": purchase_id,
                 "user_id": user_id,
                 "product_id": product_id,
                 "product_name": product["name"],
-                "price_paid": price,
-                "purchased_at": datetime.now().isoformat(),
+                "price_paid": product["price"],
+                "purchased_at": datetime.utcnow().isoformat(),
                 "active": True
             }
             
-            # Añadir fecha de expiración si es temporal
-            if product.get("duration_days"):
-                from datetime import timedelta
-                expiry_date = datetime.now() + timedelta(days=product["duration_days"])
-                purchase_data["expires_at"] = expiry_date.isoformat()
-            
-            # Guardar la compra
             if "purchases" not in data["virtual_shop"]:
                 data["virtual_shop"]["purchases"] = {}
             data["virtual_shop"]["purchases"][purchase_id] = purchase_data
@@ -163,74 +149,95 @@ class VirtualShop:
             
             save_data(data)
             
-            # Obtener balance actualizado directamente de datos frescos
-            fresh_data = load_data()
-            new_balance = fresh_data["economy"]["users"][user_id]["coins"]
-            
             return {
                 "success": True,
+                "message": f"¡Compra exitosa! Has adquirido **{product['name']}**",
                 "purchase_id": purchase_id,
-                "product": product,
-                "new_balance": new_balance
+                "product": product
             }
-        
-        return {"success": False, "error": "Error al procesar el pago"}
+            
+        except Exception as e:
+            return {"success": False, "message": f"Error al procesar la compra: {str(e)}"}
     
     def get_user_purchases(self, user_id: str) -> List[Dict]:
-        """Obtiene todas las compras de un usuario"""
+        """Obtiene las compras de un usuario"""
         data = load_data()
+        
         if "virtual_shop" not in data or "purchases" not in data["virtual_shop"]:
             return []
         
-        user_purchases = []
-        for purchase_id, purchase in data["virtual_shop"]["purchases"].items():
-            if purchase["user_id"] == user_id:
-                purchase_copy = purchase.copy()
-                purchase_copy["purchase_id"] = purchase_id
-                
-                # Verificar si el producto temporal ha expirado
-                if "expires_at" in purchase:
-                    expiry_date = datetime.fromisoformat(purchase["expires_at"])
-                    if datetime.now() > expiry_date:
-                        purchase_copy["active"] = False
-                        # Actualizar en la base de datos
-                        data["virtual_shop"]["purchases"][purchase_id]["active"] = False
-                        save_data(data)
-                
-                user_purchases.append(purchase_copy)
+        purchases = data["virtual_shop"]["purchases"]
         
-        return user_purchases
+        # Verificar si purchases es una lista, convertir a diccionario
+        if isinstance(purchases, list):
+            purchases_dict = {str(i): purchase for i, purchase in enumerate(purchases)}
+            data["virtual_shop"]["purchases"] = purchases_dict
+            save_data(data)
+            purchases = purchases_dict
+        elif not isinstance(purchases, dict):
+            return []
+        
+        user_purchases = []
+        for purchase_id, purchase in purchases.items():
+            if isinstance(purchase, dict) and purchase.get("user_id") == user_id and purchase.get("active", True):
+                user_purchases.append(purchase)
+        
+        return sorted(user_purchases, key=lambda x: x.get("purchased_at", ""), reverse=True)
     
-    def get_products_by_category(self, category: str = None) -> List[Tuple[str, Dict]]:
-        """Obtiene todos los productos habilitados"""
+    def deactivate_purchase(self, purchase_id: str) -> bool:
+        """Desactiva una compra (para productos temporales)"""
+        data = load_data()
+        
+        if "virtual_shop" in data and "purchases" in data["virtual_shop"] and purchase_id in data["virtual_shop"]["purchases"]:
+            data["virtual_shop"]["purchases"][purchase_id]["active"] = False
+            save_data(data)
+            return True
+        return False
+    
+    def get_products_by_category(self) -> Dict[str, List[Dict]]:
+        """Organiza productos por categoría"""
         products = self.get_virtual_products()
-        filtered_products = []
+        categorized = {cat: [] for cat in self.categories.keys()}
         
         for product_id, product in products.items():
             if product.get("enabled", True):
-                filtered_products.append((product_id, product))
+                category = product.get("category", "other")
+                if category not in categorized:
+                    category = "other"
+                categorized[category].append(product)
         
-        # Ordenar por precio
-        filtered_products.sort(key=lambda x: x[1]["price"])
-        return filtered_products
+        return categorized
     
     def get_shop_stats(self) -> Dict:
         """Obtiene estadísticas de la tienda virtual"""
         data = load_data()
         if "virtual_shop" not in data:
-            return {"total_products": 0, "total_purchases": 0, "total_revenue": 0}
+            return {"total_products": 0, "total_purchases": 0, "total_revenue": 0, "enabled_products": 0}
         
         products = data["virtual_shop"].get("products", {})
         purchases = data["virtual_shop"].get("purchases", {})
         
-        total_revenue = sum(purchase["price_paid"] for purchase in purchases.values())
-        active_products = sum(1 for product in products.values() if product.get("enabled", True))
+        # Verificar si purchases es un diccionario, si no, convertirlo
+        if isinstance(purchases, list):
+            # Si es una lista, convertir a diccionario usando índices
+            purchases = {str(i): purchase for i, purchase in enumerate(purchases)}
+        elif not isinstance(purchases, dict):
+            purchases = {}
+        
+        # Verificar si products es un diccionario
+        if isinstance(products, list):
+            products = {str(i): product for i, product in enumerate(products)}
+        elif not isinstance(products, dict):
+            products = {}
+        
+        total_revenue = sum(purchase["price_paid"] for purchase in purchases.values() if isinstance(purchase, dict) and purchase.get("active", True))
+        active_purchases = len([p for p in purchases.values() if isinstance(p, dict) and p.get("active", True)])
         
         return {
             "total_products": len(products),
-            "active_products": active_products,
-            "total_purchases": len(purchases),
-            "total_revenue": total_revenue
+            "total_purchases": active_purchases,
+            "total_revenue": total_revenue,
+            "enabled_products": len([p for p in products.values() if isinstance(p, dict) and p.get("enabled", True)])
         }
 
 # Instancia global de la tienda virtual
