@@ -4,9 +4,10 @@ from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
 from economy_system import economy
-from views.virtual_shop_view import VirtualShopView
+
 from typing import Optional
 import random
+from views.virtual_shop_view import VirtualShopView, MyPurchasesView
 
 def setup(tree: app_commands.CommandTree, client: discord.Client):
     
@@ -715,25 +716,7 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
                 except:
                     pass
     
-    @tree.command(name="tienda", description="🛒 Abre la tienda virtual de GameCoins")
-    async def tienda_virtual(interaction: discord.Interaction):
-        """Comando para abrir la tienda virtual de GameCoins"""
-        try:
-            await interaction.response.defer()
-            
-            view = VirtualShopView(str(interaction.user.id))
-            embed = view.create_embed()
-            
-            await interaction.followup.send(embed=embed, view=view)
-            
-            print(f"Usuario {interaction.user.name} (ID: {interaction.user.id}) abrió la tienda virtual")
-            
-        except Exception as e:
-            print(f"Error en comando tienda: {str(e)}")
-            if not interaction.response.is_done():
-                await interaction.followup.send("❌ Error al abrir la tienda virtual. Intenta de nuevo.", ephemeral=True)
-            else:
-                await interaction.edit_original_response(content="❌ Error al abrir la tienda virtual. Intenta de nuevo.")
+
     
     @leaderboard.autocomplete('categoria')
     async def leaderboard_autocomplete(interaction: discord.Interaction, current: str):
@@ -745,25 +728,67 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         ]
 
     # Event listeners para actualizar progreso de tareas
-    @client.event
-    async def on_message(message):
+    @tree.command(name="tienda_virtual", description="🛒 Abre la tienda virtual de GameCoins")
+    async def tienda_virtual(interaction: discord.Interaction):
+        """Abre la tienda virtual de GameCoins"""
+        try:
+            view = VirtualShopView(interaction.user.id)
+            view.update_buttons()
+            embed = view.create_shop_embed()
+            
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            view.message = await interaction.original_response()
+            
+        except Exception as e:
+            logger.error(f"Error al abrir tienda virtual: {e}")
+            await interaction.response.send_message("❌ Error al abrir la tienda virtual.", ephemeral=True)
+    
+    @tree.command(name="mis_compras", description="🛍️ Ver tu historial de compras en la tienda virtual")
+    async def mis_compras(interaction: discord.Interaction):
+        """Muestra el historial de compras del usuario"""
+        try:
+            view = MyPurchasesView(interaction.user.id)
+            view.update_buttons()
+            embed = view.create_purchases_embed()
+            
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            view.message = await interaction.original_response()
+            
+        except Exception as e:
+            logger.error(f"Error al mostrar compras: {e}")
+            await interaction.response.send_message("❌ Error al cargar tu historial de compras.", ephemeral=True)
+
+    async def handle_economy_message(message: discord.Message):
         if message.author.bot:
             return
         
         user_id = str(message.author.id)
         economy.update_task_progress(user_id, "send_messages")
-        economy.update_task_progress(user_id, "send_many_messages")
-    
-    @client.event
-    async def on_interaction(interaction):
+
+    async def handle_economy_interaction(interaction: discord.Interaction):
+        if interaction.user.bot:
+            return
+        
         if interaction.type == discord.InteractionType.application_command:
             user_id = str(interaction.user.id)
             economy.update_task_progress(user_id, "use_commands")
+
+    async def handle_economy_reaction(reaction: discord.Reaction, user: discord.User):
+        if user.bot:
+            return
+
+        user_id = str(user.id)
+        economy.update_task_progress(user_id, "react_messages")
+
+    # Register event listeners using the event decorator approach
+    @client.event
+    async def on_message(message):
+        await handle_economy_message(message)
+    
+    @client.event
+    async def on_interaction(interaction):
+        await handle_economy_interaction(interaction)
     
     @client.event
     async def on_reaction_add(reaction, user):
-        if user.bot:
-            return
-        
-        user_id = str(user.id)
-        economy.update_task_progress(user_id, "react_messages")
+        await handle_economy_reaction(reaction, user)

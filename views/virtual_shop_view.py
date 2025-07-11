@@ -1,94 +1,127 @@
 import discord
+from discord.ext import commands
 from discord import ui
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
+import logging
 from virtual_shop import virtual_shop
-from economy_system import economy
-import math
+from data_manager import load_data, save_data
+from economy_system import EconomySystem
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 class VirtualShopView(discord.ui.View):
-    def __init__(self, user_id: str, page: int = 0):
-        super().__init__(timeout=300)
+    """Vista principal de la tienda virtual"""
+    
+    def __init__(self, user_id: int, timeout: float = 300):
+        super().__init__(timeout=timeout)
         self.user_id = user_id
-        self.page = page
-        self.items_per_page = 5
-        
-        # Obtener productos
-        self.products = virtual_shop.get_products_by_category()
-        self.total_pages = max(1, math.ceil(len(self.products) / self.items_per_page))
-        
-        # Ajustar página si está fuera de rango
-        if self.page >= self.total_pages:
-            self.page = 0
-        
-        self.update_buttons()
+        self.current_category = "all"
+        self.current_page = 0
+        self.products_per_page = 5
     
-    def get_current_products(self) -> List[Tuple[str, Dict]]:
-        """Obtiene los productos de la página actual"""
-        start_idx = self.page * self.items_per_page
-        end_idx = start_idx + self.items_per_page
-        return self.products[start_idx:end_idx]
+    async def on_timeout(self):
+        """Deshabilita los botones cuando expira el tiempo"""
+        for item in self.children:
+            item.disabled = True
+        
+        try:
+            await self.message.edit(view=self)
+        except:
+            pass
     
-    def create_embed(self) -> discord.Embed:
-        """Crea el embed de la tienda virtual"""
-        user_economy = economy.get_user_economy(self.user_id)
+    def get_filtered_products(self):
+        """Obtiene productos filtrados por categoría"""
+        all_products = virtual_shop.get_virtual_products()
         
-        title = "🛒 Tienda Virtual GameCoins"
-        description = "Compra productos virtuales con tus GameCoins"
+        # Filtrar solo productos habilitados
+        enabled_products = {k: v for k, v in all_products.items() if v.get('enabled', True)}
         
+        if self.current_category == "all":
+            return enabled_products
+        
+        return {k: v for k, v in enabled_products.items() if v.get('category') == self.current_category}
+    
+    def create_shop_embed(self):
+        """Crea el embed principal de la tienda"""
+        economy = EconomySystem()
+        user_coins = economy.get_balance(str(self.user_id))
+        
+        filtered_products = self.get_filtered_products()
+        total_products = len(filtered_products)
+        
+        # Calcular paginación
+        start_idx = self.current_page * self.products_per_page
+        end_idx = start_idx + self.products_per_page
+        products_list = list(filtered_products.items())[start_idx:end_idx]
+        
+        # Crear embed
         embed = discord.Embed(
-            title=title,
-            description=description,
-            color=0x00ff88
+            title="🛒 Tienda Virtual de GameCoins",
+            description=f"💰 Tus GameCoins: **{user_coins:,}**",
+            color=0x3498db
         )
         
-        # Mostrar balance del usuario
+        # Información de categoría
+        if self.current_category == "all":
+            category_name = "📦 Todas las Categorías"
+        else:
+            category_info = virtual_shop.categories.get(self.current_category, {"name": "Sin Categoría", "emoji": "📦"})
+            category_name = f"{category_info['emoji']} {category_info['name']}"
+        
         embed.add_field(
-            name="💰 Tu Balance",
-            value=f"{user_economy['coins']:,} GameCoins",
+            name="📂 Categoría Actual",
+            value=category_name,
             inline=True
         )
         
-        # Mostrar información de página
-        if self.total_pages > 1:
-            embed.add_field(
-                name="📄 Página",
-                value=f"{self.page + 1}/{self.total_pages}",
-                inline=True
-            )
+        # Información de paginación
+        total_pages = (total_products + self.products_per_page - 1) // self.products_per_page
+        if total_pages == 0:
+            total_pages = 1
         
         embed.add_field(
-            name="📊 Total Productos",
-            value=f"{len(self.products)} disponibles",
+            name="📄 Página",
+            value=f"{self.current_page + 1}/{total_pages}",
             inline=True
         )
         
-        # Mostrar productos de la página actual
-        current_products = self.get_current_products()
+        embed.add_field(
+            name="📦 Productos",
+            value=f"{total_products} disponibles",
+            inline=True
+        )
         
-        if not current_products:
+        # Mostrar productos
+        if not products_list:
             embed.add_field(
-                name="❌ Sin Productos",
+                name="🚫 Sin Productos",
                 value="No hay productos disponibles en esta categoría.",
                 inline=False
             )
         else:
-            for i, (product_id, product) in enumerate(current_products, 1):
-                # Crear descripción del producto
-                product_desc = product['description']
+            for i, (product_id, product) in enumerate(products_list, 1):
+                # Determinar si el usuario puede comprar
+                can_afford = user_coins >= product['price']
+                price_display = f"💰 **{product['price']:,}** GameCoins"
+                if not can_afford:
+                    price_display += " ❌"
                 
-                # Añadir información específica según el tipo
+                # Información adicional
+                extra_info = []
                 if product.get('role_id'):
-                    product_desc += f"\n🎭 Rol: <@&{product['role_id']}>"
-                
+                    extra_info.append("🎭 Incluye rol")
                 if product.get('duration_days'):
-                    product_desc += f"\n⏰ Duración: {product['duration_days']} días"
+                    extra_info.append(f"⏰ {product['duration_days']} días")
                 
-                if product.get('multiplier'):
-                    product_desc += f"\n🚀 Multiplicador: x{product['multiplier']}"
+                value = f"{price_display}\n📝 {product['description']}"
+                if extra_info:
+                    value += f"\n{' • '.join(extra_info)}"
+                value += f"\n🆔 `{product_id}`"
                 
                 embed.add_field(
-                    name=f"📦 {product['name']}",
-                    value=f"{product_desc}\n\n💰 **{product['price']:,} GameCoins**",
+                    name=f"{start_idx + i}. {product['name']}",
+                    value=value,
                     inline=False
                 )
         
@@ -96,250 +129,377 @@ class VirtualShopView(discord.ui.View):
         return embed
     
     def update_buttons(self):
-        """Actualiza los botones según el estado actual"""
-        self.clear_items()
+        """Actualiza el estado de los botones"""
+        filtered_products = self.get_filtered_products()
+        total_products = len(filtered_products)
+        total_pages = max(1, (total_products + self.products_per_page - 1) // self.products_per_page)
         
         # Botones de navegación
-        if self.total_pages > 1:
-            if self.page > 0:
-                prev_button = discord.ui.Button(
-                    label="◀️ Anterior",
-                    style=discord.ButtonStyle.secondary,
-                    custom_id="prev_page"
-                )
-                prev_button.callback = self.previous_page
-                self.add_item(prev_button)
-            
-            if self.page < self.total_pages - 1:
-                next_button = discord.ui.Button(
-                    label="Siguiente ▶️",
-                    style=discord.ButtonStyle.secondary,
-                    custom_id="next_page"
-                )
-                next_button.callback = self.next_page
-                self.add_item(next_button)
+        self.previous_page.disabled = self.current_page == 0
+        self.next_page.disabled = self.current_page >= total_pages - 1
         
-        # Selector de productos para comprar
-        current_products = self.get_current_products()
-        if current_products:
-            product_select = ProductSelect(self.user_id, current_products)
-            self.add_item(product_select)
-        
-        # Botón de inventario
-        inventory_button = discord.ui.Button(
-            label="🎒 Mi Inventario",
-            style=discord.ButtonStyle.primary,
-            custom_id="view_inventory"
-        )
-        inventory_button.callback = self.view_inventory
-        self.add_item(inventory_button)
-        
-        # Botón de actualizar
-        refresh_button = discord.ui.Button(
-            label="🔄 Actualizar",
-            style=discord.ButtonStyle.secondary,
-            custom_id="refresh"
-        )
-        refresh_button.callback = self.refresh
-        self.add_item(refresh_button)
+        # Botón de compra
+        self.buy_product.disabled = total_products == 0
     
-    async def previous_page(self, interaction: discord.Interaction):
-        if interaction.user.id != int(self.user_id):
-            await interaction.response.send_message("❌ Solo quien abrió la tienda puede navegar.", ephemeral=True)
+    @discord.ui.select(
+        placeholder="🔍 Selecciona una categoría...",
+        options=[
+            discord.SelectOption(label="📦 Todas las Categorías", value="all", emoji="📦"),
+            discord.SelectOption(label="🎭 Roles", value="roles", emoji="🎭"),
+            discord.SelectOption(label="⭐ Beneficios", value="perks", emoji="⭐"),
+            discord.SelectOption(label="🎁 Items", value="items", emoji="🎁"),
+            discord.SelectOption(label="✨ Cosméticos", value="cosmetics", emoji="✨"),
+            discord.SelectOption(label="📦 Otros", value="other", emoji="📦")
+        ]
+    )
+    async def category_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        """Maneja la selección de categoría"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
             return
         
-        self.page = max(0, self.page - 1)
+        self.current_category = select.values[0]
+        self.current_page = 0  # Resetear página al cambiar categoría
+        
         self.update_buttons()
-        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        embed = self.create_shop_embed()
+        
+        await interaction.response.edit_message(embed=embed, view=self)
     
-    async def next_page(self, interaction: discord.Interaction):
-        if interaction.user.id != int(self.user_id):
-            await interaction.response.send_message("❌ Solo quien abrió la tienda puede navegar.", ephemeral=True)
+    @discord.ui.button(label="⬅️ Anterior", style=discord.ButtonStyle.secondary)
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Página anterior"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
             return
         
-        self.page = min(self.total_pages - 1, self.page + 1)
-        self.update_buttons()
-        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            embed = self.create_shop_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer()
     
-
-    
-    async def view_inventory(self, interaction: discord.Interaction):
-        if interaction.user.id != int(self.user_id):
-            await interaction.response.send_message("❌ Solo puedes ver tu propio inventario.", ephemeral=True)
+    @discord.ui.button(label="➡️ Siguiente", style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Página siguiente"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
             return
         
-        inventory_view = InventoryView(self.user_id)
-        await interaction.response.send_message(embed=inventory_view.create_embed(), view=inventory_view, ephemeral=True)
+        filtered_products = self.get_filtered_products()
+        total_pages = max(1, (len(filtered_products) + self.products_per_page - 1) // self.products_per_page)
+        
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            embed = self.create_shop_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer()
     
-    async def refresh(self, interaction: discord.Interaction):
-        if interaction.user.id != int(self.user_id):
-            await interaction.response.send_message("❌ Solo quien abrió la tienda puede actualizar.", ephemeral=True)
+    @discord.ui.button(label="🛍️ Comprar", style=discord.ButtonStyle.success)
+    async def buy_product(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Abre el modal de compra"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
             return
         
-        # Recrear la vista con datos actualizados
-        new_view = VirtualShopView(self.user_id, self.page)
-        await interaction.response.edit_message(embed=new_view.create_embed(), view=new_view)
-
-
-
-class ProductSelect(discord.ui.Select):
-    def __init__(self, user_id: str, products: List[Tuple[str, Dict]]):
-        self.user_id = user_id
-        self.products = {product_id: product for product_id, product in products}
-        
-        options = []
-        for product_id, product in products:
-            # Verificar si el usuario puede comprar el producto
-            user_economy = economy.get_user_economy(user_id)
-            can_afford = user_economy["coins"] >= product["price"]
-            
-            label = product["name"]
-            if not can_afford:
-                label += " (Sin GameCoins)"
-            
-            options.append(
-                discord.SelectOption(
-                    label=label[:100],  # Límite de Discord
-                    description=f"{product['price']:,} GameCoins - {product['description'][:50]}...",
-                    value=product_id,
-                    emoji="💰" if can_afford else "❌"
-                )
-            )
-        
-        super().__init__(
-            placeholder="Selecciona un producto para comprar...",
-            options=options,
-            custom_id="product_select"
-        )
-    
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id != int(self.user_id):
-            await interaction.response.send_message("❌ Solo quien abrió la tienda puede comprar productos.", ephemeral=True)
+        filtered_products = self.get_filtered_products()
+        if not filtered_products:
+            await interaction.response.send_message("❌ No hay productos disponibles para comprar.", ephemeral=True)
             return
         
-        product_id = self.values[0]
-        product = self.products[product_id]
-        
-        # Crear modal de confirmación
-        modal = PurchaseConfirmModal(self.user_id, product_id, product)
+        modal = PurchaseModal(self.user_id, filtered_products)
         await interaction.response.send_modal(modal)
-
-class PurchaseConfirmModal(discord.ui.Modal):
-    def __init__(self, user_id: str, product_id: str, product: Dict):
-        self.user_id = user_id
-        self.product_id = product_id
-        self.product = product
+    
+    @discord.ui.button(label="🔄 Actualizar", style=discord.ButtonStyle.primary)
+    async def refresh_shop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Actualiza la tienda"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
+            return
         
-        super().__init__(title=f"Confirmar Compra: {product['name']}")
+        self.update_buttons()
+        embed = self.create_shop_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+    
+    @discord.ui.button(label="❌ Cerrar", style=discord.ButtonStyle.danger)
+    async def close_shop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cierra la tienda"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien abrió la tienda puede usarla.", ephemeral=True)
+            return
         
-        self.confirmation = discord.ui.TextInput(
-            label="Confirma escribiendo 'COMPRAR'",
-            placeholder="Escribe COMPRAR para confirmar la compra",
-            required=True,
-            max_length=10
+        embed = discord.Embed(
+            title="🛒 Tienda Virtual Cerrada",
+            description="¡Gracias por visitar la tienda virtual!",
+            color=0x95a5a6
         )
-        self.add_item(self.confirmation)
+        
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.response.edit_message(embed=embed, view=self)
+
+class PurchaseModal(discord.ui.Modal):
+    """Modal para realizar compras"""
+    
+    def __init__(self, user_id: int, available_products: dict):
+        super().__init__(title="🛍️ Comprar Producto")
+        self.user_id = user_id
+        self.available_products = available_products
+        
+        self.product_id = discord.ui.TextInput(
+            label="ID del Producto",
+            placeholder="Ingresa el ID del producto que deseas comprar...",
+            required=True,
+            max_length=50
+        )
+        self.add_item(self.product_id)
     
     async def on_submit(self, interaction: discord.Interaction):
-        if self.confirmation.value.upper() != "COMPRAR":
-            await interaction.response.send_message("❌ Compra cancelada. Debes escribir 'COMPRAR' para confirmar.", ephemeral=True)
-            return
-        
-        # Realizar la compra
-        result = virtual_shop.purchase_virtual_product(self.user_id, self.product_id)
-        
-        if result["success"]:
-            embed = discord.Embed(
-                title="✅ Compra Exitosa",
-                description=f"Has comprado **{self.product['name']}** exitosamente!",
-                color=0x00ff88
-            )
-            embed.add_field(
-                name="💰 Precio Pagado",
-                value=f"{self.product['price']:,} GameCoins",
-                inline=True
-            )
-            embed.add_field(
-                name="💳 Nuevo Balance",
-                value=f"{result['new_balance']:,} GameCoins",
-                inline=True
-            )
+        """Procesa la compra"""
+        try:
+            await interaction.response.defer()
             
-            if self.product.get('duration_days'):
-                embed.add_field(
-                    name="⏰ Duración",
-                    value=f"{self.product['duration_days']} días",
-                    inline=True
+            product_id = self.product_id.value.strip()
+            
+            # Verificar que el producto existe y está disponible
+            if product_id not in self.available_products:
+                await interaction.followup.send("❌ Producto no encontrado o no disponible.", ephemeral=True)
+                return
+            
+            product = self.available_products[product_id]
+            
+            # Verificar GameCoins del usuario
+            economy = EconomySystem()
+            user_coins = economy.get_balance(str(self.user_id))
+            
+            if user_coins < product['price']:
+                needed = product['price'] - user_coins
+                await interaction.followup.send(
+                    f"❌ No tienes suficientes GameCoins.\n"
+                    f"💰 Tienes: {user_coins:,}\n"
+                    f"💰 Necesitas: {product['price']:,}\n"
+                    f"💰 Te faltan: {needed:,}",
+                    ephemeral=True
                 )
+                return
             
-            embed.set_footer(text="¡Gracias por tu compra! Revisa tu inventario para ver tus productos.")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        else:
-            embed = discord.Embed(
-                title="❌ Error en la Compra",
-                description=result["error"],
-                color=0xff0000
+            # Procesar compra
+            purchase_result = virtual_shop.purchase_virtual_product(
+                user_id=str(self.user_id),
+                product_id=product_id,
+                guild_id=str(interaction.guild.id) if interaction.guild else None
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-class InventoryView(discord.ui.View):
-    def __init__(self, user_id: str):
-        super().__init__(timeout=300)
-        self.user_id = user_id
-        self.purchases = virtual_shop.get_user_purchases(user_id)
-    
-    def create_embed(self) -> discord.Embed:
-        """Crea el embed del inventario"""
-        embed = discord.Embed(
-            title="🎒 Mi Inventario Virtual",
-            description="Tus productos comprados con GameCoins",
-            color=0x9932cc
-        )
-        
-        if not self.purchases:
-            embed.add_field(
-                name="📦 Inventario Vacío",
-                value="No has comprado ningún producto virtual aún.\nVisita la tienda para comprar productos con GameCoins.",
-                inline=False
-            )
-        else:
-            active_purchases = [p for p in self.purchases if p.get('active', True)]
-            expired_purchases = [p for p in self.purchases if not p.get('active', True)]
             
-            if active_purchases:
-                embed.add_field(
-                    name="✅ Productos Activos",
-                    value=f"Tienes {len(active_purchases)} productos activos",
-                    inline=True
+            if purchase_result['success']:
+                # Deducir coins usando el sistema de economía
+                economy.remove_coins(str(self.user_id), product['price'], f"Compra: {product['name']}")
+                new_balance = economy.get_balance(str(self.user_id))
+                
+                # Otorgar rol si es necesario
+                role_granted = False
+                if product.get('role_id') and interaction.guild:
+                    try:
+                        role = interaction.guild.get_role(int(product['role_id']))
+                        if role and role not in interaction.user.roles:
+                            await interaction.user.add_roles(role)
+                            role_granted = True
+                    except Exception as e:
+                        logger.error(f"Error al otorgar rol: {e}")
+                
+                # Crear embed de confirmación
+                embed = discord.Embed(
+                    title="✅ Compra Exitosa",
+                    description=f"¡Has comprado **{product['name']}** exitosamente!",
+                    color=0x00ff00
                 )
                 
-                for purchase in active_purchases[:5]:  # Mostrar máximo 5
-                    value = f"💰 Pagado: {purchase['price_paid']:,} GameCoins"
-                    if 'expires_at' in purchase:
-                        from datetime import datetime
-                        expiry = datetime.fromisoformat(purchase['expires_at'])
-                        value += f"\n⏰ Expira: {expiry.strftime('%d/%m/%Y %H:%M')}"
-                    
+                embed.add_field(name="💰 Precio", value=f"{product['price']:,} GameCoins", inline=True)
+                embed.add_field(name="💰 Saldo Restante", value=f"{new_balance:,} GameCoins", inline=True)
+                
+                if role_granted:
+                    embed.add_field(name="🎭 Rol Otorgado", value=f"<@&{product['role_id']}>", inline=False)
+                
+                if product.get('duration_days'):
+                    expiry_date = datetime.now() + timedelta(days=product['duration_days'])
                     embed.add_field(
-                        name=f"📦 {purchase['product_name']}",
-                        value=value,
+                        name="⏰ Válido hasta",
+                        value=f"<t:{int(expiry_date.timestamp())}:F>",
                         inline=False
                     )
-            
-            if expired_purchases:
-                embed.add_field(
-                    name="⏰ Productos Expirados",
-                    value=f"Tienes {len(expired_purchases)} productos expirados",
-                    inline=True
+                
+                embed.add_field(name="📝 Descripción", value=product['description'], inline=False)
+                embed.set_footer(text=f"Compra ID: {purchase_result['purchase_id']}")
+                
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+                # Log de la compra
+                logger.info(f"Usuario {self.user_id} compró {product['name']} por {product['price']} GameCoins")
+                
+            else:
+                await interaction.followup.send(
+                    f"❌ Error al procesar la compra: {purchase_result.get('error', 'Error desconocido')}",
+                    ephemeral=True
                 )
         
-        total_spent = sum(p['price_paid'] for p in self.purchases)
+        except Exception as e:
+            logger.error(f"Error en compra de producto virtual: {e}")
+            await interaction.followup.send("❌ Error al procesar la compra. Intenta de nuevo.", ephemeral=True)
+
+class MyPurchasesView(discord.ui.View):
+    """Vista para mostrar las compras del usuario"""
+    
+    def __init__(self, user_id: int, timeout: float = 300):
+        super().__init__(timeout=timeout)
+        self.user_id = user_id
+        self.current_page = 0
+        self.purchases_per_page = 5
+    
+    async def on_timeout(self):
+        """Deshabilita los botones cuando expira el tiempo"""
+        for item in self.children:
+            item.disabled = True
+        
+        try:
+            await self.message.edit(view=self)
+        except:
+            pass
+    
+    def get_user_purchases(self):
+        """Obtiene las compras del usuario"""
+        return virtual_shop.get_user_purchases(str(self.user_id))
+    
+    def create_purchases_embed(self):
+        """Crea el embed de compras del usuario"""
+        purchases = self.get_user_purchases()
+        total_purchases = len(purchases)
+        
+        # Calcular paginación
+        start_idx = self.current_page * self.purchases_per_page
+        end_idx = start_idx + self.purchases_per_page
+        purchases_list = purchases[start_idx:end_idx]
+        
+        embed = discord.Embed(
+            title="🛍️ Mis Compras",
+            description=f"Total de compras: {total_purchases}",
+            color=0x9b59b6
+        )
+        
+        # Información de paginación
+        total_pages = max(1, (total_purchases + self.purchases_per_page - 1) // self.purchases_per_page)
         embed.add_field(
-            name="💸 Total Gastado",
+            name="📄 Página",
+            value=f"{self.current_page + 1}/{total_pages}",
+            inline=True
+        )
+        
+        # Calcular total gastado
+        total_spent = sum(purchase.get('price_paid', 0) for purchase in purchases)
+        embed.add_field(
+            name="💰 Total Gastado",
             value=f"{total_spent:,} GameCoins",
             inline=True
         )
         
-        embed.set_footer(text="Los productos temporales expiran automáticamente")
+        # Mostrar compras
+        if not purchases_list:
+            embed.add_field(
+                name="🚫 Sin Compras",
+                value="No has realizado compras aún.",
+                inline=False
+            )
+        else:
+            for i, purchase in enumerate(purchases_list, 1):
+                status = "✅ Activo" if purchase.get('active', True) else "❌ Inactivo"
+                
+                # Formatear fecha
+                purchase_date = datetime.fromisoformat(purchase['purchase_date'])
+                date_str = f"<t:{int(purchase_date.timestamp())}:d>"
+                
+                value = f"💰 {purchase.get('price_paid', 0):,} GameCoins\n"
+                value += f"📅 {date_str}\n"
+                value += f"🔄 {status}"
+                
+                embed.add_field(
+                    name=f"{start_idx + i}. {purchase['product_name']}",
+                    value=value,
+                    inline=True
+                )
+        
+        embed.set_footer(text="Historial de compras en la tienda virtual")
         return embed
+    
+    def update_buttons(self):
+        """Actualiza el estado de los botones"""
+        purchases = self.get_user_purchases()
+        total_purchases = len(purchases)
+        total_pages = max(1, (total_purchases + self.purchases_per_page - 1) // self.purchases_per_page)
+        
+        self.previous_page.disabled = self.current_page == 0
+        self.next_page.disabled = self.current_page >= total_pages - 1
+    
+    @discord.ui.button(label="⬅️ Anterior", style=discord.ButtonStyle.secondary)
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Página anterior"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien solicitó la información puede usarla.", ephemeral=True)
+            return
+        
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            embed = self.create_purchases_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer()
+    
+    @discord.ui.button(label="➡️ Siguiente", style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Página siguiente"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien solicitó la información puede usarla.", ephemeral=True)
+            return
+        
+        purchases = self.get_user_purchases()
+        total_pages = max(1, (len(purchases) + self.purchases_per_page - 1) // self.purchases_per_page)
+        
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            embed = self.create_purchases_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer()
+    
+    @discord.ui.button(label="🔄 Actualizar", style=discord.ButtonStyle.primary)
+    async def refresh_purchases(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Actualiza la lista de compras"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien solicitó la información puede usarla.", ephemeral=True)
+            return
+        
+        self.update_buttons()
+        embed = self.create_purchases_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+    
+    @discord.ui.button(label="❌ Cerrar", style=discord.ButtonStyle.danger)
+    async def close_purchases(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cierra la vista de compras"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ Solo quien solicitó la información puede usarla.", ephemeral=True)
+            return
+        
+        embed = discord.Embed(
+            title="🛍️ Compras Cerradas",
+            description="Vista de compras cerrada.",
+            color=0x95a5a6
+        )
+        
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.response.edit_message(embed=embed, view=self)

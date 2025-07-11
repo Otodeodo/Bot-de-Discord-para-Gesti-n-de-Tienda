@@ -120,23 +120,18 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         # Economía Virtual
         embed.add_field(
             name="🪙 **ECONOMÍA VIRTUAL**",
-            value="**💰 Personal:** `/balance` `/daily` `/jobs`\n**⚒️ Trabajo:** `/work` `/apply_job` `/claim_task`\n**🎮 Juegos:** `/games` `/coinflip` `/dice` `/slots` `/blackjack` (interactivo) `/ruleta`\n**🏆 Social:** `/transfer` `/leaderboard`",
+            value="**💰 Personal:** `/balance` `/daily` `/jobs`\n**⚒️ Trabajo:** `/work` `/apply_job` `/claim_task`\n**🎮 Juegos:** `/games` `/coinflip` `/dice` `/slots` `/blackjack` (interactivo) `/ruleta`\n**🏆 Social:** `/transfer` `/leaderboard`\n**🛒 Tienda:** `/tienda_virtual` `/mis_compras`",
             inline=True
         )
         
         # Tienda y Productos
         embed.add_field(
             name="🛒 **TIENDA & PRODUCTOS**",
-            value="**👥 Usuario:** `/products` `/ticket` `/ver-tienda` `/pago`\n**👑 Admin:** `/add-product` `/edit-product` `/delete-product` `/close` `/ticket-panel`\n**💳 Pagos:** `/add-payment-info` `/remove-payment-info`",
+            value="**👥 Usuario:** `/products` `/ticket` `/pago`\n**👑 Admin:** `/add-product` `/edit-product` `/delete-product` `/close` `/ticket-panel`\n**💳 Pagos:** `/add-payment-info` `/remove-payment-info`",
             inline=True
         )
         
-        # Inteligencia Artificial
-        embed.add_field(
-            name="🤖 **INTELIGENCIA ARTIFICIAL**",
-            value="**💬 Chat:** Menciona `@GameMid`\n**🖼️ Imágenes:** Reconocimiento GPT-4o\n**⏰ Recordatorios:** Sistema automático\n**🔧 Admin:** `/sync` `/categorias`",
-            inline=True
-        )
+
         
         # Comandos Generales
         embed.add_field(
@@ -148,16 +143,42 @@ def setup(tree: app_commands.CommandTree, client: discord.Client):
         # Características destacadas
         embed.add_field(
             name="✨ **CARACTERÍSTICAS DESTACADAS**",
-            value="🪙 **Sistema de GameCoins** completo\n🎮 **Minijuegos** interactivos\n🤖 **IA GPT-4o** integrada\n🎫 **Sistema de tickets** automático\n📊 **Rankings** y estadísticas\n⏰ **Recordatorios** personalizados",
+            value="🪙 **Sistema de GameCoins** completo\n🎮 **Minijuegos** interactivos\n🎫 **Sistema de tickets** automático\n📊 **Rankings** y estadísticas\n⏰ **Recordatorios** personalizados",
             inline=True
         )
         
         # Enlaces y documentación
         embed.add_field(
             name="📖 **DOCUMENTACIÓN**",
-            value="📋 [Economía Virtual](https://github.com/tu-repo/ECONOMIA_VIRTUAL.md)\n🖼️ [Reconocimiento IA](https://github.com/tu-repo/IMAGE_RECOGNITION.md)\n⏰ [Sistema Recordatorios](https://github.com/tu-repo/REMINDER_SYSTEM.md)",
+            value="📋 [Economía Virtual](https://github.com/tu-repo/ECONOMIA_VIRTUAL.md)\n⏰ [Sistema Recordatorios](https://github.com/tu-repo/REMINDER_SYSTEM.md)",
             inline=True
         )
+        
+        # Comandos de Owner (solo visible para owners)
+        from utils import OWNER_IDS
+        if str(interaction.user.id) in OWNER_IDS:
+            embed.add_field(
+                name="👑 Comandos de Owner",
+                value="`/add_gamecoins` - Añadir GameCoins a un usuario\n"
+                      "`/remove_gamecoins` - Quitar GameCoins a un usuario\n"
+                      "`/set_gamecoins` - Establecer GameCoins de un usuario\n"
+                      "`/reset_daily` - Resetear daily de un usuario\n"
+                      "`/backup_data` - Crear respaldo de datos\n"
+                      "`/restore_data` - Restaurar datos desde respaldo\n"
+                      "`/clear_data` - Limpiar datos de usuario\n"
+                      "`/bot_stats` - Estadísticas del bot",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="🛒 Gestión de Tienda Virtual",
+                value="`/añadir_producto_virtual` - Añadir producto\n"
+                      "`/editar_producto_virtual` - Editar producto\n"
+                      "`/eliminar_producto_virtual` - Eliminar producto\n"
+                      "`/listar_productos_virtuales` - Ver todos los productos\n"
+                      "`/gestionar_tienda_virtual` - Panel de gestión",
+                inline=False
+            )
         
         embed.set_footer(text="💡 GameMid - Tu asistente completo para Discord | Desarrollado con ❤️")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1234567890/gamemid-logo.png")
